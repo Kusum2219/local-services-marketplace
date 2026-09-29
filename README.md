@@ -19,7 +19,7 @@ A full-stack marketplace for discovering, comparing, and booking verified local 
 ## Features
 
 - Customer authentication
-- Vendor onboarding
+- Vendor onboarding 
 - Service listings
 - Availability slots
 - Booking
