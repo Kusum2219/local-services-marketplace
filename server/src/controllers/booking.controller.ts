@@ -131,3 +131,64 @@ export const createBooking = async (
     });
   }
 };
+
+
+export const getMyBookings = async (
+  req: Request & {
+    user?: {
+      userId: string;
+      role: string;
+    };
+  },
+  res: Response
+) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const bookings = await prisma.booking.findMany({
+      where: {
+        userId: req.user.userId,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        slot: {
+          include: {
+            service: {
+              select: {
+                id: true,
+                title: true,
+                price: true,
+                vendor: {
+                  select: {
+                    id: true,
+                    businessName: true,
+                    location: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      bookings,
+    });
+  } catch (error) {
+    console.error("Get my bookings error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
