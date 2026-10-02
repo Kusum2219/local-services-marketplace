@@ -5,6 +5,10 @@ import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
 import authRoutes from "./routes/auth.routes";
 import vendorRoutes from "./routes/vendor.routes";
+import categoryRoutes from "./routes/category.routes";
+import serviceRoutes from "./routes/service.routes";
+import slotRoutes from "./routes/slot.routes";
+import bookingRoutes from "./routes/booking.routes";
 
 const app = express();
 
@@ -38,6 +42,10 @@ const apiLimiter = rateLimit({
 app.use("/api", apiLimiter);
 app.use("/api/auth", authRoutes);
 app.use("/api/vendors", vendorRoutes);
+app.use("/api/categories", categoryRoutes);
+app.use("/api/services", serviceRoutes);
+app.use("/api/slots", slotRoutes);
+app.use("/api/bookings", bookingRoutes);
 
 // Health check
 app.get("/api/health", (_req, res) => {

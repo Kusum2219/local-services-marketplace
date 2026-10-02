@@ -93,14 +93,14 @@ model AvailabilitySlot {
 model Booking {
   id        String        @id @default(cuid())
   userId    String
-  slotId   String        @unique
+  slotId    String?       @unique
   status    BookingStatus @default(PENDING)
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
   user User             @relation(fields: [userId], references: [id])
-  slot AvailabilitySlot @relation(fields: [slotId], references: [id])
-  
+  slot AvailabilitySlot? @relation(fields: [slotId], references: [id])
+
   @@index([userId])
   @@index([status])
 }
