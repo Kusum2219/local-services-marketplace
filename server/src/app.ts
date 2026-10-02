@@ -2,6 +2,9 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import cookieParser from "cookie-parser";
+import authRoutes from "./routes/auth.routes";
+import vendorRoutes from "./routes/vendor.routes";
 
 const app = express();
 
@@ -18,6 +21,7 @@ app.use(
 
 // Limit JSON payload size
 app.use(express.json({ limit: "10kb" }));
+app.use(cookieParser());
 
 // Basic API rate limiting
 const apiLimiter = rateLimit({
@@ -32,6 +36,8 @@ const apiLimiter = rateLimit({
 });
 
 app.use("/api", apiLimiter);
+app.use("/api/auth", authRoutes);
+app.use("/api/vendors", vendorRoutes);
 
 // Health check
 app.get("/api/health", (_req, res) => {
