@@ -9,6 +9,7 @@ import Services from "./pages/Services";
 import VendorDetails from "./pages/VendorDetails";
 import Booking from "./pages/Booking";
 import Dashboard from "./pages/Dashboard";
+import ServiceDetails from "./pages/ServiceDetails";
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
         <Route path="/vendor/:id" element={<VendorDetails />} />
         <Route path="/booking/:serviceId" element={<Booking />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/services/:serviceId" element={<ServiceDetails />} />
       </Routes>
     </BrowserRouter>
   );

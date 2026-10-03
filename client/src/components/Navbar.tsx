@@ -1,15 +1,25 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 function Navbar() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleSectionClick = (sectionId: string) => {
+    if (location.pathname === "/") {
+      document.getElementById(sectionId)?.scrollIntoView({
+        behavior: "smooth",
+      });
+    } else {
+      navigate(`/#${sectionId}`);
+    }
+  };
+
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-sm">
       <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-6 lg:px-8">
 
         {/* Logo */}
-        <Link
-          to="/"
-          className="flex items-center gap-2.5"
-        >
+        <Link to="/" className="flex items-center gap-2.5">
           <span className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-950 text-sm font-bold text-white">
             L
           </span>
@@ -29,19 +39,19 @@ function Navbar() {
             Services
           </Link>
 
-          <a
-            href="#how-it-works"
+          <button
+            onClick={() => handleSectionClick("how-it-works")}
             className="text-[14px] font-medium text-slate-600 transition-colors hover:text-slate-950"
           >
             How it works
-          </a>
+          </button>
 
-          <a
-            href="#why-localfix"
+          <button
+            onClick={() => handleSectionClick("why-localfix")}
             className="text-[14px] font-medium text-slate-600 transition-colors hover:text-slate-950"
           >
             Why LocalFix
-          </a>
+          </button>
 
           <Link
             to="/register"
@@ -49,7 +59,6 @@ function Navbar() {
           >
             For professionals
           </Link>
-
         </nav>
 
         {/* Actions */}

@@ -172,3 +172,67 @@ export const getServices = async (
     });
   }
 };
+
+// GET SINGLE SERVICE
+export const getServiceById = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const { serviceId } = req.params;
+
+    if (
+      typeof serviceId !== "string" ||
+      serviceId.trim().length === 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Service ID is required",
+      });
+    }
+
+    const service = await prisma.service.findFirst({
+      where: {
+        id: serviceId,
+        isActive: true,
+      },
+      include: {
+        vendor: {
+          select: {
+            id: true,
+            businessName: true,
+            description: true,
+            phone: true,
+            location: true,
+            isVerified: true,
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!service) {
+      return res.status(404).json({
+        success: false,
+        message: "Service not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      service,
+    });
+  } catch (error) {
+    console.error("Get service by ID error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
