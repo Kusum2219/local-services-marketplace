@@ -166,3 +166,29 @@ export const login = async (req: Request, res: Response) => {
 };
 
 export const getMe = async ( req: Request & { user?: { userId: string; role: string; }; }, res: Response ) => { try { if (!req.user) { return res.status(401).json({ success: false, message: "Authentication required", }); } const user = await prisma.user.findUnique({ where: { id: req.user.userId, }, select: { id: true, name: true, email: true, role: true, createdAt: true, }, }); if (!user) { return res.status(401).json({ success: false, message: "User account no longer exists", }); } return res.status(200).json({ success: true, user, }); } catch (error) { console.error("Get current user error:", error); return res.status(500).json({ success: false, message: "Internal server error", }); } };
+
+// ==============================
+// LOGOUT
+// ==============================
+
+export const logout = async (_req: Request, res: Response) => {
+  try {
+    res.clearCookie("accessToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Logged out successfully",
+    });
+  } catch (error) {
+    console.error("Logout error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
