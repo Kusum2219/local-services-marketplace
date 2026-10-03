@@ -192,3 +192,167 @@ export const getMyBookings = async (
     });
   }
 };
+
+export const cancelBooking = async (
+  req: Request & {
+    user?: {
+      userId: string;
+      role: string;
+    };
+  },
+  res: Response
+) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const { bookingId } = req.params;
+
+    if (
+      typeof bookingId !== "string" ||
+      bookingId.trim().length === 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Booking ID is required",
+      });
+    }
+
+    // Find booking belonging to logged-in customer
+    const booking = await prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        userId: req.user.userId,
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
+    }
+
+    // Prevent cancelling already completed/cancelled bookings
+    if (booking.status === "COMPLETED") {
+      return res.status(400).json({
+        success: false,
+        message: "Completed bookings cannot be cancelled",
+      });
+    }
+
+    if (booking.status === "CANCELLED") {
+      return res.status(400).json({
+        success: false,
+        message: "Booking is already cancelled",
+      });
+    }
+
+    // Release the slot while preserving booking history
+    const cancelledBooking = await prisma.booking.update({
+      where: {
+        id: booking.id,
+      },
+      data: {
+        status: "CANCELLED",
+        slotId: null,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Booking cancelled successfully",
+      booking: cancelledBooking,
+    });
+  } catch (error) {
+    console.error("Cancel booking error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const getVendorBookings = async (
+  req: Request & {
+    user?: {
+      userId: string;
+      role: string;
+    };
+  },
+  res: Response
+) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    // Find vendor profile of logged-in user
+    const vendorProfile = await prisma.vendorProfile.findUnique({
+      where: {
+        userId: req.user.userId,
+      },
+    });
+
+    if (!vendorProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor profile not found",
+      });
+    }
+
+    // Get bookings for services owned by this vendor
+    const bookings = await prisma.booking.findMany({
+      where: {
+        slot: {
+          service: {
+            vendorId: vendorProfile.id,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        slot: {
+          include: {
+            service: {
+              select: {
+                id: true,
+                title: true,
+                price: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      bookings,
+    });
+  } catch (error) {
+    console.error("Get vendor bookings error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
