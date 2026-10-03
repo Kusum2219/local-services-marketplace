@@ -1,5 +1,8 @@
 import { Router } from "express";
-import { createVendorProfile } from "../controllers/vendor.controller";
+import {
+  createVendorProfile,
+  getVendorDashboard,
+} from "../controllers/vendor.controller";
 import { authenticate } from "../middleware/auth.middleware";
 import { authorizeRoles } from "../middleware/role.middleware";
 
@@ -11,6 +14,13 @@ router.post(
   authenticate,
   authorizeRoles("VENDOR"),
   createVendorProfile
+);
+
+router.get(
+  "/dashboard",
+  authenticate,
+  authorizeRoles("VENDOR"),
+  getVendorDashboard
 );
 
 export default router;

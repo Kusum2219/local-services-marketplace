@@ -356,3 +356,187 @@ export const getVendorBookings = async (
     });
   }
 };
+
+// CONFIRM BOOKING
+export const confirmBooking = async (
+  req: Request & {
+    user?: {
+      userId: string;
+      role: string;
+    };
+  },
+  res: Response
+) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const { bookingId } = req.params;
+
+    if (
+      typeof bookingId !== "string" ||
+      bookingId.trim().length === 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Booking ID is required",
+      });
+    }
+
+    const vendorProfile = await prisma.vendorProfile.findUnique({
+      where: {
+        userId: req.user.userId,
+      },
+    });
+
+    if (!vendorProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor profile not found",
+      });
+    }
+
+    const booking = await prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        slot: {
+          service: {
+            vendorId: vendorProfile.id,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
+    }
+
+    if (booking.status !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        message: `Booking cannot be confirmed because its current status is ${booking.status}`,
+      });
+    }
+
+    const confirmedBooking = await prisma.booking.update({
+      where: {
+        id: booking.id,
+      },
+      data: {
+        status: "CONFIRMED",
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Booking confirmed successfully",
+      booking: confirmedBooking,
+    });
+  } catch (error) {
+    console.error("Confirm booking error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+// COMPLETE BOOKING
+export const completeBooking = async (
+  req: Request & {
+    user?: {
+      userId: string;
+      role: string;
+    };
+  },
+  res: Response
+) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const { bookingId } = req.params;
+
+    if (
+      typeof bookingId !== "string" ||
+      bookingId.trim().length === 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Booking ID is required",
+      });
+    }
+
+    const vendorProfile = await prisma.vendorProfile.findUnique({
+      where: {
+        userId: req.user.userId,
+      },
+    });
+
+    if (!vendorProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor profile not found",
+      });
+    }
+
+    const booking = await prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        slot: {
+          service: {
+            vendorId: vendorProfile.id,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
+    }
+
+    if (booking.status !== "CONFIRMED") {
+      return res.status(400).json({
+        success: false,
+        message: `Booking cannot be completed because its current status is ${booking.status}`,
+      });
+    }
+
+    const completedBooking = await prisma.booking.update({
+      where: {
+        id: booking.id,
+      },
+      data: {
+        status: "COMPLETED",
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Booking completed successfully",
+      booking: completedBooking,
+    });
+  } catch (error) {
+    console.error("Complete booking error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};

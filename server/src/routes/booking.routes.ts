@@ -4,7 +4,9 @@ import {
   createBooking,
   getMyBookings,
   cancelBooking,
-   getVendorBookings,
+  getVendorBookings,
+  confirmBooking,
+  completeBooking,
 } from "../controllers/booking.controller";
 
 import { authenticate } from "../middleware/auth.middleware";
@@ -34,6 +36,22 @@ router.get(
   authenticate,
   authorizeRoles("VENDOR"),
   getVendorBookings
+);
+
+// Vendor confirms booking
+router.patch(
+  "/:bookingId/confirm",
+  authenticate,
+  authorizeRoles("VENDOR"),
+  confirmBooking
+);
+
+// Vendor completes booking
+router.patch(
+  "/:bookingId/complete",
+  authenticate,
+  authorizeRoles("VENDOR"),
+  completeBooking
 );
 
 // Cancel booking

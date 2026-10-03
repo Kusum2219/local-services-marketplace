@@ -127,3 +127,48 @@ export const createService = async (
     });
   }
 };
+
+// GET ALL ACTIVE SERVICES
+export const getServices = async (
+  _req: Request,
+  res: Response
+) => {
+  try {
+    const services = await prisma.service.findMany({
+      where: {
+        isActive: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        vendor: {
+          select: {
+            id: true,
+            businessName: true,
+            location: true,
+            isVerified: true,
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      services,
+    });
+  } catch (error) {
+    console.error("Get services error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};

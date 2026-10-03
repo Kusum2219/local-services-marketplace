@@ -11,7 +11,6 @@ export const createVendorProfile = async (
   res: Response
 ) => {
   try {
-    // 1. Make sure user is authenticated
     if (!req.user) {
       return res.status(401).json({
         success: false,
@@ -19,10 +18,8 @@ export const createVendorProfile = async (
       });
     }
 
-    // 2. Get profile data
     const { businessName, description, phone, location } = req.body;
 
-    // 3. Basic validation
     if (
       typeof businessName !== "string" ||
       businessName.trim().length < 2
@@ -33,7 +30,6 @@ export const createVendorProfile = async (
       });
     }
 
-    // 4. Check whether profile already exists
     const existingProfile = await prisma.vendorProfile.findUnique({
       where: {
         userId: req.user.userId,
@@ -47,7 +43,6 @@ export const createVendorProfile = async (
       });
     }
 
-    // 5. Create vendor profile
     const vendorProfile = await prisma.vendorProfile.create({
       data: {
         userId: req.user.userId,
@@ -82,3 +77,154 @@ export const createVendorProfile = async (
   }
 };
 
+// GET VENDOR DASHBOARD
+export const getVendorDashboard = async (
+  req: Request & {
+    user?: {
+      userId: string;
+      role: string;
+    };
+  },
+  res: Response
+) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const vendorProfile = await prisma.vendorProfile.findUnique({
+      where: {
+        userId: req.user.userId,
+      },
+    });
+
+    if (!vendorProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor profile not found",
+      });
+    }
+
+    const [
+      totalServices,
+      totalBookings,
+      pendingBookings,
+      confirmedBookings,
+      completedBookings,
+      recentBookings,
+    ] = await Promise.all([
+      prisma.service.count({
+        where: {
+          vendorId: vendorProfile.id,
+        },
+      }),
+
+      prisma.booking.count({
+        where: {
+          slot: {
+            service: {
+              vendorId: vendorProfile.id,
+            },
+          },
+        },
+      }),
+
+      prisma.booking.count({
+        where: {
+          status: "PENDING",
+          slot: {
+            service: {
+              vendorId: vendorProfile.id,
+            },
+          },
+        },
+      }),
+
+      prisma.booking.count({
+        where: {
+          status: "CONFIRMED",
+          slot: {
+            service: {
+              vendorId: vendorProfile.id,
+            },
+          },
+        },
+      }),
+
+      prisma.booking.count({
+        where: {
+          status: "COMPLETED",
+          slot: {
+            service: {
+              vendorId: vendorProfile.id,
+            },
+          },
+        },
+      }),
+
+      prisma.booking.findMany({
+        where: {
+          slot: {
+            service: {
+              vendorId: vendorProfile.id,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 5,
+        include: {
+          user: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+          slot: {
+            include: {
+              service: {
+                select: {
+                  title: true,
+                  price: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      dashboard: {
+        vendor: {
+          id: vendorProfile.id,
+          businessName: vendorProfile.businessName,
+          location: vendorProfile.location,
+          isVerified: vendorProfile.isVerified,
+        },
+
+        stats: {
+          totalServices,
+          totalBookings,
+          pendingBookings,
+          confirmedBookings,
+          completedBookings,
+        },
+
+        recentBookings,
+      },
+    });
+  } catch (error) {
+    console.error("Get vendor dashboard error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
