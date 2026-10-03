@@ -18,13 +18,32 @@ function App() {
 
       <Routes>
         <Route path="/" element={<Home />} />
+
         <Route path="/login" element={<Login />} />
+
         <Route path="/register" element={<Register />} />
+
         <Route path="/services" element={<Services />} />
-        <Route path="/vendor/:id" element={<VendorDetails />} />
-        <Route path="/booking/:serviceId" element={<Booking />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/services/:serviceId" element={<ServiceDetails />} />
+
+        <Route
+          path="/services/:serviceId"
+          element={<ServiceDetails />}
+        />
+
+        <Route
+          path="/services/:serviceId/book"
+          element={<Booking />}
+        />
+
+        <Route
+          path="/vendor/:id"
+          element={<VendorDetails />}
+        />
+
+        <Route
+          path="/dashboard"
+          element={<Dashboard />}
+        />
       </Routes>
     </BrowserRouter>
   );
