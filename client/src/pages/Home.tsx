@@ -1,39 +1,72 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { getServices, type Service } from "../services/services";
 
-const services = [
-  {
-    title: "Home Cleaning",
-    description: "Reliable cleaning professionals for your home.",
-    image:
-      "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=80",
-  },
-  {
-    title: "Plumbing",
-    description: "Get plumbing issues fixed by experienced professionals.",
-    image:
-      "https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?auto=format&fit=crop&w=900&q=80",
-  },
-  {
-    title: "Electrical",
-    description: "Find professionals for repairs and installations.",
-    image:
-      "https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=900&q=80",
-  },
-  {
-    title: "Tutoring",
-    description: "Learn from tutors for school, college and skills.",
-    image:
-      "https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=900&q=80",
-  },
-];
+const serviceImages: Record<string, string> = {
+  cleaning:
+    "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=80",
+
+  plumbing:
+    "https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?auto=format&fit=crop&w=900&q=80",
+
+  electrical:
+    "https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=900&q=80",
+
+  tutoring:
+    "https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=900&q=80",
+
+  repair:
+    "https://images.unsplash.com/photo-1581244277943-fe4a9c777189?auto=format&fit=crop&w=900&q=80",
+
+  default:
+    "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=80",
+};
+
+const getServiceImage = (category: string) => {
+  const key = category.toLowerCase();
+
+  const matchedKey = Object.keys(serviceImages).find((item) =>
+    key.includes(item)
+  );
+
+  return serviceImages[matchedKey || "default"];
+};
 
 function Home() {
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const loadServices = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const data = await getServices();
+
+        setServices(data);
+      } catch (error) {
+        console.error("Failed to load services:", error);
+        setError("Unable to load services right now.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadServices();
+  }, []);
+
   return (
     <main className="bg-[#f7f7f5] text-slate-950">
+
       {/* Hero */}
+
       <section className="border-b border-slate-200">
         <div className="mx-auto grid max-w-7xl gap-12 px-6 py-16 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-24">
+
           <div className="flex flex-col justify-center">
+
             <p className="mb-5 text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
               Local services, made simple
             </p>
@@ -48,9 +81,13 @@ function Home() {
             </p>
 
             {/* Search */}
+
             <div className="mt-9 max-w-2xl">
+
               <div className="flex flex-col gap-2 rounded-xl border border-slate-300 bg-white p-2 shadow-sm sm:flex-row">
+
                 <div className="flex flex-1 items-center px-4">
+
                   <svg
                     className="mr-3 h-5 w-5 text-slate-400"
                     fill="none"
@@ -70,40 +107,57 @@ function Home() {
                     placeholder="What service do you need?"
                     className="w-full bg-transparent py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400"
                   />
+
                 </div>
 
-                <button
-                  type="button"
-                  className="rounded-lg bg-slate-950 px-7 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                <Link
+                  to="/services"
+                  className="inline-flex items-center justify-center rounded-lg bg-slate-950 px-7 py-3 text-sm font-semibold !text-white transition hover:bg-slate-800"
                 >
                   Search
-                </button>
+                </Link>
+
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-500">
                 <span>Popular:</span>
 
-                <button className="hover:text-slate-950">
+                <Link
+                  to="/services"
+                  className="transition hover:text-slate-950"
+                >
                   Cleaning
-                </button>
+                </Link>
 
-                <button className="hover:text-slate-950">
+                <Link
+                  to="/services"
+                  className="transition hover:text-slate-950"
+                >
                   Plumbing
-                </button>
+                </Link>
 
-                <button className="hover:text-slate-950">
+                <Link
+                  to="/services"
+                  className="transition hover:text-slate-950"
+                >
                   Electrical
-                </button>
+                </Link>
 
-                <button className="hover:text-slate-950">
+                <Link
+                  to="/services"
+                  className="transition hover:text-slate-950"
+                >
                   Tutoring
-                </button>
+                </Link>
               </div>
+
             </div>
           </div>
 
-          {/* Hero image */}
+          {/* Hero Image */}
+
           <div className="relative min-h-[430px] overflow-hidden rounded-2xl bg-slate-200">
+
             <img
               src="https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1400&q=85"
               alt="Professional providing a home service"
@@ -111,6 +165,7 @@ function Home() {
             />
 
             <div className="absolute bottom-5 left-5 max-w-xs rounded-xl border border-white/40 bg-white/95 p-5 shadow-lg">
+
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Trusted professionals
               </p>
@@ -118,16 +173,23 @@ function Home() {
               <p className="mt-2 text-base font-semibold text-slate-900">
                 Compare services and book a time that works for you.
               </p>
+
             </div>
           </div>
+
         </div>
       </section>
 
       {/* Services */}
+
       <section className="py-20 lg:py-24">
+
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
+
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+
             <div>
+
               <p className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
                 Explore services
               </p>
@@ -135,6 +197,7 @@ function Home() {
               <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-slate-950 sm:text-4xl">
                 What can we help you with?
               </h2>
+
             </div>
 
             <Link
@@ -143,49 +206,149 @@ function Home() {
             >
               View all services
             </Link>
+
           </div>
 
-          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {services.map((service) => (
-              <Link
-                to="/services"
-                key={service.title}
-                className="group overflow-hidden rounded-xl border border-slate-200 bg-white transition duration-200 hover:-translate-y-1 hover:shadow-lg"
-              >
-                <div className="aspect-[4/3] overflow-hidden">
-                  <img
-                    src={service.image}
-                    alt={service.title}
-                    className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-                  />
+          {/* Loading */}
+
+          {loading && (
+            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+
+              {[1, 2, 3, 4].map((item) => (
+                <div
+                  key={item}
+                  className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+                >
+                  <div className="aspect-[4/3] animate-pulse bg-slate-200" />
+
+                  <div className="space-y-3 p-5">
+                    <div className="h-5 w-3/4 animate-pulse rounded bg-slate-200" />
+                    <div className="h-4 w-full animate-pulse rounded bg-slate-100" />
+                    <div className="h-4 w-1/2 animate-pulse rounded bg-slate-100" />
+                  </div>
                 </div>
+              ))}
 
-                <div className="p-5">
-                  <h3 className="text-lg font-semibold text-slate-950">
-                    {service.title}
-                  </h3>
+            </div>
+          )}
 
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    {service.description}
-                  </p>
+          {/* Error */}
 
-                  <span className="mt-4 inline-block text-sm font-semibold text-slate-900">
-                    Explore →
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
+          {!loading && error && (
+            <div className="mt-10 rounded-xl border border-red-200 bg-red-50 px-6 py-8 text-center">
+
+              <p className="font-semibold text-red-700">
+                {error}
+              </p>
+
+              <p className="mt-2 text-sm text-red-600">
+                Please make sure the backend server is running.
+              </p>
+
+            </div>
+          )}
+
+          {/* Empty */}
+
+          {!loading && !error && services.length === 0 && (
+            <div className="mt-10 rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
+
+              <h3 className="text-lg font-semibold text-slate-950">
+                No services available yet
+              </h3>
+
+              <p className="mt-2 text-sm text-slate-500">
+                New services will appear here when professionals add them.
+              </p>
+
+            </div>
+          )}
+
+          {/* Real Services */}
+
+          {!loading && !error && services.length > 0 && (
+            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+
+              {services.slice(0, 4).map((service) => (
+                <Link
+                  to={`/services/${service.id}`}
+                  key={service.id}
+                  className="group overflow-hidden rounded-xl border border-slate-200 bg-white transition duration-200 hover:-translate-y-1 hover:shadow-lg"
+                >
+
+                  <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
+
+                    <img
+                      src={getServiceImage(service.category.name)}
+                      alt={service.title}
+                      className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                    />
+
+                    {service.vendor.isVerified && (
+                      <span className="absolute left-3 top-3 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm">
+                        Verified
+                      </span>
+                    )}
+
+                  </div>
+
+                  <div className="p-5">
+
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {service.category.name}
+                    </p>
+
+                    <h3 className="mt-2 line-clamp-1 text-lg font-semibold text-slate-950">
+                      {service.title}
+                    </h3>
+
+                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
+                      {service.description}
+                    </p>
+
+                    <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
+
+                      <div>
+                        <p className="text-xs text-slate-400">
+                          Starting from
+                        </p>
+
+                        <p className="mt-0.5 text-base font-bold text-slate-950">
+                          ₹{Number(service.price).toLocaleString("en-IN")}
+                        </p>
+                      </div>
+
+                      <span className="text-sm font-semibold text-slate-900">
+                        View →
+                      </span>
+
+                    </div>
+
+                    <p className="mt-3 text-xs text-slate-500">
+                      {service.vendor.businessName}
+                    </p>
+
+                  </div>
+
+                </Link>
+              ))}
+
+            </div>
+          )}
+
         </div>
       </section>
 
       {/* How it works */}
+
       <section
         id="how-it-works"
         className="border-y border-slate-200 bg-white py-20 lg:py-24"
       >
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
+
           <div className="max-w-2xl">
+
             <p className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
               Simple process
             </p>
@@ -193,9 +356,11 @@ function Home() {
             <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
               From search to booking in a few steps.
             </h2>
+
           </div>
 
           <div className="mt-12 grid gap-10 md:grid-cols-3">
+
             <div>
               <span className="text-sm font-semibold text-slate-400">
                 01
@@ -239,17 +404,21 @@ function Home() {
                 Select a convenient slot and confirm your appointment.
               </p>
             </div>
+
           </div>
         </div>
       </section>
 
       {/* Why LocalFix */}
+
       <section
         id="why-localfix"
         className="bg-[#f7f7f5] py-20 lg:py-24"
       >
         <div className="mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-2 lg:px-8">
+
           <div>
+
             <p className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
               Why LocalFix
             </p>
@@ -263,44 +432,63 @@ function Home() {
               customers can make informed decisions before requesting a
               service.
             </p>
+
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
+
             <div className="border-l-2 border-slate-900 pl-5">
-              <h3 className="font-semibold">Verified profiles</h3>
+              <h3 className="font-semibold">
+                Verified profiles
+              </h3>
+
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 View relevant provider information before booking.
               </p>
             </div>
 
             <div className="border-l-2 border-slate-900 pl-5">
-              <h3 className="font-semibold">Clear availability</h3>
+              <h3 className="font-semibold">
+                Clear availability
+              </h3>
+
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 Choose from actual available appointment slots.
               </p>
             </div>
 
             <div className="border-l-2 border-slate-900 pl-5">
-              <h3 className="font-semibold">Reviews</h3>
+              <h3 className="font-semibold">
+                Reviews
+              </h3>
+
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 See customer feedback before making a decision.
               </p>
             </div>
 
             <div className="border-l-2 border-slate-900 pl-5">
-              <h3 className="font-semibold">Easy booking</h3>
+              <h3 className="font-semibold">
+                Easy booking
+              </h3>
+
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 Reserve an available slot without unnecessary steps.
               </p>
             </div>
+
           </div>
+
         </div>
       </section>
 
       {/* CTA */}
+
       <section className="bg-slate-950 py-20">
+
         <div className="mx-auto max-w-4xl px-6 text-center">
-          <h2 className="text-3xl font-semibold tracking-[-0.03em] text-white sm:text-4xl">
+
+          <h2 className="text-3xl font-semibold tracking-[-0.03em] !text-white sm:text-4xl">
             Need a service? Start with LocalFix.
           </h2>
 
@@ -314,8 +502,10 @@ function Home() {
           >
             Explore services
           </Link>
+
         </div>
       </section>
+
     </main>
   );
 }
