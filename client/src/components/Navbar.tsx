@@ -8,7 +8,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: string;
+  role: "CUSTOMER" | "VENDOR" | "ADMIN";
 }
 
 function Navbar() {
@@ -95,6 +95,16 @@ function Navbar() {
     }
   };
 
+  const dashboardPath =
+    user?.role === "VENDOR"
+      ? "/vendor-dashboard"
+      : "/dashboard";
+
+  const dashboardLabel =
+    user?.role === "VENDOR"
+      ? "Vendor Dashboard"
+      : "My Bookings";
+
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
       <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-6 lg:px-8">
@@ -114,7 +124,7 @@ function Navbar() {
           </span>
         </Link>
 
-        {/* Desktop Navigation */}
+        {/* Navigation */}
 
         <nav className="hidden items-center gap-8 md:flex">
 
@@ -154,7 +164,7 @@ function Navbar() {
             </Link>
           )}
 
-          {user && (
+          {user && user.role === "CUSTOMER" && (
             <Link
               to="/services"
               className="text-sm font-medium text-slate-600 transition hover:text-slate-950"
@@ -163,9 +173,18 @@ function Navbar() {
             </Link>
           )}
 
+          {user && user.role === "VENDOR" && (
+            <Link
+              to="/vendor-dashboard"
+              className="text-sm font-medium text-slate-600 transition hover:text-slate-950"
+            >
+              Manage bookings
+            </Link>
+          )}
+
         </nav>
 
-        {/* Right Side */}
+        {/* Right side */}
 
         <div className="flex items-center gap-3">
 
@@ -176,15 +195,21 @@ function Navbar() {
               ref={profileRef}
               className="relative"
             >
+
               <button
                 type="button"
                 onClick={() =>
-                  setProfileOpen((current) => !current)
+                  setProfileOpen(
+                    (current) => !current
+                  )
                 }
                 className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 transition hover:bg-slate-50"
               >
+
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-950 text-xs font-semibold !text-white">
-                  {user.name.charAt(0).toUpperCase()}
+                  {user.name
+                    .charAt(0)
+                    .toUpperCase()}
                 </span>
 
                 <span className="hidden max-w-[120px] truncate text-sm font-semibold text-slate-800 sm:block">
@@ -193,23 +218,27 @@ function Navbar() {
 
                 <svg
                   className={`h-4 w-4 text-slate-500 transition ${
-                    profileOpen ? "rotate-180" : ""
+                    profileOpen
+                      ? "rotate-180"
+                      : ""
                   }`}
                   viewBox="0 0 20 20"
                   fill="currentColor"
                 >
                   <path
                     fillRule="evenodd"
-                    d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                    d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-.02-1.06z"
                     clipRule="evenodd"
                   />
                 </svg>
+
               </button>
 
               {profileOpen && (
                 <div className="absolute right-0 mt-3 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
 
                   <div className="border-b border-slate-100 px-4 py-4">
+
                     <p className="truncate text-sm font-semibold text-slate-950">
                       {user.name}
                     </p>
@@ -217,29 +246,48 @@ function Navbar() {
                     <p className="mt-1 truncate text-xs text-slate-500">
                       {user.email}
                     </p>
+
+                    <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-blue-600">
+                      {user.role}
+                    </p>
+
                   </div>
 
                   <div className="p-2">
 
                     <Link
-                      to="/dashboard"
+                      to={dashboardPath}
                       onClick={() =>
                         setProfileOpen(false)
                       }
                       className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                     >
-                      My Bookings
+                      {dashboardLabel}
                     </Link>
 
-                    <Link
-                      to="/services"
-                      onClick={() =>
-                        setProfileOpen(false)
-                      }
-                      className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Browse Services
-                    </Link>
+                    {user.role === "CUSTOMER" && (
+                      <Link
+                        to="/services"
+                        onClick={() =>
+                          setProfileOpen(false)
+                        }
+                        className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                      >
+                        Browse Services
+                      </Link>
+                    )}
+
+                    {user.role === "VENDOR" && (
+                      <Link
+                        to="/vendor-dashboard"
+                        onClick={() =>
+                          setProfileOpen(false)
+                        }
+                        className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                      >
+                        Manage Bookings
+                      </Link>
+                    )}
 
                     <button
                       type="button"
@@ -252,6 +300,7 @@ function Navbar() {
                   </div>
                 </div>
               )}
+
             </div>
           ) : (
             <>
@@ -272,6 +321,7 @@ function Navbar() {
           )}
 
         </div>
+
       </div>
     </header>
   );

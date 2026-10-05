@@ -5,6 +5,13 @@ import axios from "axios";
 
 const API_URL = "http://localhost:5000/api";
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: "CUSTOMER" | "VENDOR" | "ADMIN";
+}
+
 function Login() {
   const navigate = useNavigate();
 
@@ -26,6 +33,7 @@ function Login() {
       setLoading(true);
       setError("");
 
+      // Login
       await axios.post(
         `${API_URL}/auth/login`,
         {
@@ -37,8 +45,37 @@ function Login() {
         }
       );
 
-      // Login successful
-      navigate("/dashboard", { replace: true });
+      // Get logged-in user
+      const response = await axios.get<{
+  success: boolean;
+  user: User;
+}>(
+  `${API_URL}/auth/me`,
+  {
+    withCredentials: true,
+  }
+);
+
+const user = response.data.user;
+      // Role-based redirect
+      if (user.role === "VENDOR") {
+        navigate("/vendor-dashboard", {
+          replace: true,
+        });
+        return;
+      }
+
+      if (user.role === "ADMIN") {
+        navigate("/dashboard", {
+          replace: true,
+        });
+        return;
+      }
+
+      // CUSTOMER
+      navigate("/dashboard", {
+        replace: true,
+      });
     } catch (error: any) {
       console.error("Login error:", error);
 

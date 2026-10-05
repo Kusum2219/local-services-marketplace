@@ -336,6 +336,21 @@ export const getVendorBookings = async (
                 id: true,
                 title: true,
                 price: true,
+
+                category: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+
+                vendor: {
+                  select: {
+                    id: true,
+                    businessName: true,
+                    isVerified: true,
+                  },
+                },
               },
             },
           },

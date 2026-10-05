@@ -43,6 +43,8 @@ export const authenticate = (
       });
     }
 
+    console.log("JWT decoded:", decoded);
+
     req.user = {
       userId: String(decoded.userId),
       role: String(decoded.role),

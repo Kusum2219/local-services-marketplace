@@ -10,6 +10,7 @@ import VendorDetails from "./pages/VendorDetails";
 import Booking from "./pages/Booking";
 import Dashboard from "./pages/Dashboard";
 import ServiceDetails from "./pages/ServiceDetails";
+import VendorDashboard from "./pages/VendorDashboard";
 
 function App() {
   return (
@@ -44,6 +45,11 @@ function App() {
           path="/dashboard"
           element={<Dashboard />}
         />
+
+        <Route
+  path="/vendor-dashboard"
+  element={<VendorDashboard />}
+/>
       </Routes>
     </BrowserRouter>
   );

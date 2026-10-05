@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 
 const API_URL = "http://localhost:5000/api";
@@ -13,17 +13,24 @@ interface User {
 
 interface Booking {
   id: string;
-  status: string;
+  status: "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
   createdAt: string;
+
+  // Cancelled bookings can have slot = null
   slot: {
+    id: string;
     startTime: string;
     endTime: string;
+
     service: {
       id: string;
       title: string;
       price: string;
+
       vendor: {
+        id: string;
         businessName: string;
+        location: string | null;
       };
     };
   } | null;
@@ -34,17 +41,20 @@ interface Service {
   title: string;
   description: string;
   price: string;
-  vendor: {
-    businessName: string;
-    location: string | null;
-    isVerified: boolean;
-  };
+
   category: {
     name: string;
+  };
+
+  vendor: {
+    businessName: string;
+    isVerified: boolean;
   };
 }
 
 function Dashboard() {
+  const navigate = useNavigate();
+
   const [user, setUser] = useState<User | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -53,17 +63,34 @@ function Dashboard() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    const loadDashboard = async () => {
       try {
         setLoading(true);
         setError("");
 
-        const [userResponse, bookingsResponse, servicesResponse] =
-          await Promise.all([
-            axios.get(`${API_URL}/auth/me`, {
-              withCredentials: true,
-            }),
+        // First check logged-in user
+        const userResponse = await axios.get(
+          `${API_URL}/auth/me`,
+          {
+            withCredentials: true,
+          }
+        );
 
+        const currentUser = userResponse.data.user;
+
+        setUser(currentUser);
+
+        // Vendor should never stay on customer dashboard
+        if (currentUser.role === "VENDOR") {
+          navigate("/vendor-dashboard", {
+            replace: true,
+          });
+          return;
+        }
+
+        // Load customer data
+        const [bookingsResponse, servicesResponse] =
+          await Promise.all([
             axios.get(`${API_URL}/bookings/my`, {
               withCredentials: true,
             }),
@@ -71,48 +98,62 @@ function Dashboard() {
             axios.get(`${API_URL}/services`),
           ]);
 
-        setUser(userResponse.data.user);
-        setBookings(bookingsResponse.data.bookings);
-        setServices(servicesResponse.data.services);
+        setBookings(
+          bookingsResponse.data.bookings || []
+        );
+
+        setServices(
+          servicesResponse.data.services || []
+        );
       } catch (error: any) {
         console.error("Dashboard error:", error);
 
         if (error.response?.status === 401) {
-          setError("Please login to access your dashboard.");
-        } else {
-          setError("Unable to load dashboard data.");
+          navigate("/login", {
+            replace: true,
+          });
+          return;
         }
+
+        setError(
+          error.response?.data?.message ||
+            "Unable to load your dashboard."
+        );
       } finally {
         setLoading(false);
       }
     };
 
-    fetchDashboardData();
-  }, []);
+    loadDashboard();
+  }, [navigate]);
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-IN", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
+    return new Date(dateString).toLocaleDateString(
+      "en-IN",
+      {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      }
+    );
   };
 
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString("en-IN", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
+    return new Date(dateString).toLocaleTimeString(
+      "en-IN",
+      {
+        hour: "numeric",
+        minute: "2-digit",
+      }
+    );
   };
 
-  const getStatusStyle = (status: string) => {
+  const getStatusStyles = (
+    status: Booking["status"]
+  ) => {
     switch (status) {
       case "CONFIRMED":
         return "bg-green-50 text-green-700 border-green-200";
-
-      case "PENDING":
-        return "bg-yellow-50 text-yellow-700 border-yellow-200";
 
       case "COMPLETED":
         return "bg-blue-50 text-blue-700 border-blue-200";
@@ -121,53 +162,46 @@ function Dashboard() {
         return "bg-red-50 text-red-700 border-red-200";
 
       default:
-        return "bg-slate-50 text-slate-600 border-slate-200";
+        return "bg-amber-50 text-amber-700 border-amber-200";
     }
   };
 
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-[#f7f7f5]">
-        <div className="mx-auto max-w-7xl px-6 py-16 lg:px-8">
-          <div className="animate-pulse">
-            <div className="h-8 w-64 rounded bg-slate-200" />
-            <div className="mt-3 h-4 w-96 max-w-full rounded bg-slate-200" />
+  const handleCancelBooking = async (bookingId: string) => {
+  const confirmed = window.confirm(
+    "Are you sure you want to cancel this booking?"
+  );
 
-            <div className="mt-10 grid gap-5 md:grid-cols-3">
-              <div className="h-32 rounded-2xl bg-slate-200" />
-              <div className="h-32 rounded-2xl bg-slate-200" />
-              <div className="h-32 rounded-2xl bg-slate-200" />
-            </div>
-          </div>
-        </div>
-      </main>
-    );
+  if (!confirmed) {
+    return;
   }
 
-  if (error) {
-    return (
-      <main className="min-h-screen bg-[#f7f7f5]">
-        <div className="mx-auto max-w-7xl px-6 py-16 lg:px-8">
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-8">
-            <h1 className="text-xl font-semibold text-red-800">
-              Unable to load dashboard
-            </h1>
+  try {
+    await axios.patch(
+      `${API_URL}/bookings/${bookingId}/cancel`,
+      {},
+      {
+        withCredentials: true,
+      }
+    );
 
-            <p className="mt-2 text-sm text-red-600">
-              {error}
-            </p>
+    // Refresh bookings after successful cancellation
+    const response = await axios.get(
+      `${API_URL}/bookings/my`,
+      {
+        withCredentials: true,
+      }
+    );
 
-            <Link
-              to="/login"
-              className="mt-5 inline-flex rounded-lg bg-slate-950 px-5 py-3 text-sm font-semibold !text-white"
-            >
-              Go to Login
-            </Link>
-          </div>
-        </div>
-      </main>
+    setBookings(response.data.bookings || []);
+  } catch (error: any) {
+    console.error("Cancel booking error:", error);
+
+    window.alert(
+      error.response?.data?.message ||
+        "Unable to cancel this booking."
     );
   }
+};
 
   const upcomingBookings = bookings.filter(
     (booking) =>
@@ -175,238 +209,455 @@ function Dashboard() {
       booking.status === "CONFIRMED"
   );
 
+  const completedBookings = bookings.filter(
+    (booking) => booking.status === "COMPLETED"
+  );
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-slate-50">
+        <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
+          <div className="h-8 w-64 animate-pulse rounded bg-slate-200" />
+
+          <div className="mt-3 h-5 w-96 animate-pulse rounded bg-slate-100" />
+
+          <div className="mt-8 grid gap-4 sm:grid-cols-3">
+            {[1, 2, 3].map((item) => (
+              <div
+                key={item}
+                className="h-28 animate-pulse rounded-2xl bg-white"
+              />
+            ))}
+          </div>
+
+          <div className="mt-8 h-72 animate-pulse rounded-2xl bg-white" />
+        </div>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="min-h-screen bg-slate-50">
+        <div className="mx-auto max-w-3xl px-6 py-20 text-center">
+          <h1 className="text-2xl font-bold text-slate-950">
+            Something went wrong
+          </h1>
+
+          <p className="mt-3 text-sm text-slate-600">
+            {error}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-6 rounded-lg bg-slate-950 px-5 py-3 text-sm font-semibold !text-white hover:bg-blue-600"
+          >
+            Try again
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-[#f7f7f5]">
-      <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8 lg:py-14">
+    <main className="min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
 
         {/* Header */}
 
         <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
-              Customer Dashboard
+            <p className="text-sm font-semibold text-blue-600">
+              Customer dashboard
             </p>
 
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-              Welcome, {user?.name}
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
+              Welcome back, {user?.name}
             </h1>
 
-            <p className="mt-2 text-slate-600">
-              Manage your bookings and discover local services.
+            <p className="mt-2 text-sm text-slate-600">
+              Manage your bookings and discover services near you.
             </p>
           </div>
 
           <Link
             to="/services"
-            className="inline-flex w-fit rounded-lg bg-slate-950 px-5 py-3 text-sm font-semibold !text-white transition hover:bg-blue-600"
+            className="inline-flex w-fit items-center rounded-lg bg-slate-950 px-5 py-3 text-sm font-semibold !text-white transition hover:bg-blue-600"
           >
-            Browse Services
+            Browse services
           </Link>
         </div>
 
         {/* Stats */}
 
-        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-8 grid gap-4 sm:grid-cols-3">
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6">
-            <p className="text-sm text-slate-500">
-              Total Bookings
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm font-medium text-slate-500">
+              Upcoming bookings
             </p>
 
-            <p className="mt-3 text-3xl font-semibold text-slate-950">
-              {bookings.length}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-6">
-            <p className="text-sm text-slate-500">
-              Upcoming
-            </p>
-
-            <p className="mt-3 text-3xl font-semibold text-slate-950">
+            <p className="mt-2 text-3xl font-bold text-slate-950">
               {upcomingBookings.length}
             </p>
+
+            <p className="mt-1 text-xs text-slate-400">
+              Pending or confirmed
+            </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6">
-            <p className="text-sm text-slate-500">
-              Available Services
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm font-medium text-slate-500">
+              Completed services
             </p>
 
-            <p className="mt-3 text-3xl font-semibold text-slate-950">
-              {services.length}
+            <p className="mt-2 text-3xl font-bold text-slate-950">
+              {completedBookings.length}
+            </p>
+
+            <p className="mt-1 text-xs text-slate-400">
+              Successfully completed
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm font-medium text-slate-500">
+              Total bookings
+            </p>
+
+            <p className="mt-2 text-3xl font-bold text-slate-950">
+              {bookings.length}
+            </p>
+
+            <p className="mt-1 text-xs text-slate-400">
+              Across LocalFix
             </p>
           </div>
 
         </div>
 
-        {/* Upcoming Bookings */}
+        {/* Bookings */}
 
         <section className="mt-10">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
-                Your bookings
-              </p>
 
-              <h2 className="mt-2 text-2xl font-semibold text-slate-950">
-                Upcoming appointments
-              </h2>
-            </div>
+          <div>
+            <h2 className="text-xl font-bold text-slate-950">
+              Your bookings
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Track the status of your service requests.
+            </p>
           </div>
 
-          {upcomingBookings.length === 0 ? (
-            <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
-              <h3 className="text-lg font-semibold text-slate-900">
-                No upcoming bookings
+          {bookings.length === 0 ? (
+            <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
+
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
+                <svg
+                  className="h-6 w-6 text-slate-500"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"
+                  />
+                </svg>
+              </div>
+
+              <h3 className="mt-4 text-sm font-semibold text-slate-900">
+                No bookings yet
               </h3>
 
-              <p className="mt-2 text-sm text-slate-500">
-                Find a service and book a convenient time slot.
+              <p className="mt-1 text-sm text-slate-500">
+                Find a service and make your first booking.
               </p>
 
               <Link
                 to="/services"
-                className="mt-5 inline-flex rounded-lg bg-slate-950 px-5 py-3 text-sm font-semibold !text-white"
+                className="mt-5 inline-flex rounded-lg bg-slate-950 px-5 py-2.5 text-sm font-semibold !text-white hover:bg-blue-600"
               >
-                Find a Service
+                Explore services
               </Link>
+
             </div>
           ) : (
-            <div className="mt-6 space-y-4">
-              {upcomingBookings.map((booking) => (
-                <div
-                  key={booking.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-6"
-                >
-                  {booking.slot && (
-                    <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
+            <div className="mt-5 space-y-4">
 
-                      <div>
-                        <div className="flex flex-wrap items-center gap-3">
-                          <h3 className="text-lg font-semibold text-slate-950">
-                            {booking.slot.service.title}
-                          </h3>
+              {bookings.map((booking) => {
 
-                          <span
-                            className={`rounded-full border px-3 py-1 text-xs font-semibold ${getStatusStyle(
-                              booking.status
-                            )}`}
-                          >
-                            {booking.status}
-                          </span>
+                /*
+                 * Cancelled bookings can have slot = null
+                 * because the backend releases the slot
+                 * when a booking is cancelled.
+                 */
+                if (!booking.slot) {
+                  return (
+                    <div
+                      key={booking.id}
+                      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                    >
+                      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+
+                        <div className="flex min-w-0 gap-4">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-50 text-sm font-bold text-red-600">
+                            C
+                          </div>
+
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-semibold text-slate-950">
+                                Cancelled booking
+                              </h3>
+
+                              <span
+                                className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getStatusStyles(
+                                  booking.status
+                                )}`}
+                              >
+                                {booking.status}
+                              </span>
+                            </div>
+
+                            <p className="mt-1 text-sm text-slate-500">
+                              This booking was cancelled and the service slot has been released.
+                            </p>
+
+                            <p className="mt-2 text-xs text-slate-400">
+                              Booking ID: {booking.id}
+                            </p>
+                          </div>
                         </div>
 
-                        <p className="mt-2 text-sm text-slate-500">
-                          {booking.slot.service.vendor.businessName}
-                        </p>
-
-                        <p className="mt-3 text-sm font-medium text-slate-700">
-                          {formatDate(booking.slot.startTime)}
-                        </p>
-
-                        <p className="mt-1 text-sm text-slate-500">
-                          {formatTime(booking.slot.startTime)}
-                          {" – "}
-                          {formatTime(booking.slot.endTime)}
-                        </p>
                       </div>
 
-                      <div className="text-left md:text-right">
-                        <p className="text-sm text-slate-500">
-                          Service price
+                      <div className="mt-4 rounded-lg bg-red-50 px-4 py-3">
+                        <p className="text-xs font-medium text-red-700">
+                          This booking was cancelled.
                         </p>
+                      </div>
+                    </div>
+                  );
+                }
 
-                        <p className="mt-1 text-xl font-semibold text-slate-950">
-                          ₹{booking.slot.service.price}
-                        </p>
+                return (
+                  <div
+                    key={booking.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                  >
+
+                    <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
+
+                      {/* Service */}
+
+                      <div className="flex min-w-0 gap-4">
+
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-sm font-bold !text-white">
+                          {booking.slot.service.title
+                            .charAt(0)
+                            .toUpperCase()}
+                        </div>
+
+                        <div className="min-w-0">
+
+                          <div className="flex flex-wrap items-center gap-2">
+
+                            <h3 className="font-semibold text-slate-950">
+                              {booking.slot.service.title}
+                            </h3>
+
+                            <span
+                              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getStatusStyles(
+                                booking.status
+                              )}`}
+                            >
+                              {booking.status}
+                            </span>
+
+                          </div>
+
+                          <p className="mt-1 text-sm text-slate-500">
+                            {booking.slot.service.vendor.businessName}
+                          </p>
+
+                          {booking.slot.service.vendor.location && (
+                            <p className="mt-1 text-xs text-slate-400">
+                              {booking.slot.service.vendor.location}
+                            </p>
+                          )}
+
+                          <p className="mt-2 text-sm font-medium text-slate-700">
+                            {formatDate(
+                              booking.slot.startTime
+                            )}
+                            {" · "}
+                            {formatTime(
+                              booking.slot.startTime
+                            )}
+                            {" – "}
+                            {formatTime(
+                              booking.slot.endTime
+                            )}
+                          </p>
+
+                        </div>
+                      </div>
+
+                      {/* Price */}
+
+                      <div className="flex items-center justify-between gap-5 border-t border-slate-100 pt-4 lg:border-0 lg:pt-0">
+
+                        <div>
+  <p className="text-xs text-slate-500">
+    Service price
+  </p>
+
+  <p className="mt-1 text-lg font-bold text-slate-950">
+    ₹
+    {Number(
+      booking.slot.service.price
+    ).toLocaleString("en-IN")}
+  </p>
+</div>
+
+<div className="flex items-center gap-2">
+  <Link
+    to={`/services/${booking.slot.service.id}`}
+    className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+  >
+    View service
+  </Link>
+
+  {(booking.status === "PENDING" ||
+    booking.status === "CONFIRMED") && (
+    <button
+      type="button"
+      onClick={() =>
+        handleCancelBooking(booking.id)
+      }
+      className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-100"
+    >
+      Cancel
+    </button>
+  )}
+</div>
+
                       </div>
 
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    {/* Status */}
+
+                    {booking.status === "PENDING" && (
+                      <div className="mt-4 rounded-lg bg-amber-50 px-4 py-3">
+                        <p className="text-xs font-medium text-amber-700">
+                          Your booking request has been sent to the provider and is waiting for confirmation.
+                        </p>
+                      </div>
+                    )}
+
+                    {booking.status === "CONFIRMED" && (
+                      <div className="mt-4 rounded-lg bg-green-50 px-4 py-3">
+                        <p className="text-xs font-medium text-green-700">
+                          Your booking has been confirmed by the service provider.
+                        </p>
+                      </div>
+                    )}
+
+                    {booking.status === "COMPLETED" && (
+                      <div className="mt-4 rounded-lg bg-blue-50 px-4 py-3">
+                        <p className="text-xs font-medium text-blue-700">
+                          This service has been completed.
+                        </p>
+                      </div>
+                    )}
+
+                    {booking.status === "CANCELLED" && (
+                      <div className="mt-4 rounded-lg bg-red-50 px-4 py-3">
+                        <p className="text-xs font-medium text-red-700">
+                          This booking was cancelled.
+                        </p>
+                      </div>
+                    )}
+
+                  </div>
+                );
+              })}
+
             </div>
           )}
+
         </section>
 
-        {/* Services */}
+        {/* Recommended services */}
 
-        <section className="mt-14">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
-                Discover
-              </p>
+        <section className="mt-12">
 
-              <h2 className="mt-2 text-2xl font-semibold text-slate-950">
-                Available services
-              </h2>
-            </div>
+          <div>
+            <h2 className="text-xl font-bold text-slate-950">
+              Discover more services
+            </h2>
 
-            <Link
-              to="/services"
-              className="text-sm font-semibold text-slate-900 underline underline-offset-4"
-            >
-              View all services
-            </Link>
+            <p className="mt-1 text-sm text-slate-500">
+              Find trusted professionals for your next task.
+            </p>
           </div>
 
-          {services.length === 0 ? (
-            <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-8">
-              <p className="text-slate-500">
-                No services are currently available.
-              </p>
-            </div>
-          ) : (
-            <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {services.slice(0, 6).map((service) => (
-                <div
-                  key={service.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-6 transition hover:-translate-y-1 hover:shadow-md"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        {service.category.name}
-                      </p>
+          <div className="mt-5 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
 
-                      <h3 className="mt-2 text-lg font-semibold text-slate-950">
-                        {service.title}
-                      </h3>
-                    </div>
+            {services.slice(0, 3).map((service) => (
+              <Link
+                key={service.id}
+                to={`/services/${service.id}`}
+                className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+              >
 
-                    {service.vendor.isVerified && (
-                      <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700">
-                        Verified
-                      </span>
-                    )}
-                  </div>
+                <div className="flex items-start justify-between gap-4">
 
-                  <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-500">
-                    {service.description}
-                  </p>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                    {service.category.name}
+                  </span>
 
-                  <p className="mt-4 text-sm text-slate-500">
-                    {service.vendor.businessName}
-                  </p>
-
-                  <div className="mt-5 flex items-center justify-between">
-                    <span className="text-lg font-semibold text-slate-950">
-                      ₹{service.price}
+                  {service.vendor.isVerified && (
+                    <span className="text-xs font-semibold text-green-600">
+                      Verified
                     </span>
+                  )}
 
-                    <Link
-                      to={`/services/${service.id}`}
-                      className="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold !text-white transition hover:bg-blue-600"
-                    >
-                      View Service
-                    </Link>
-                  </div>
                 </div>
-              ))}
-            </div>
-          )}
+
+                <h3 className="mt-4 font-semibold text-slate-950 group-hover:text-blue-600">
+                  {service.title}
+                </h3>
+
+                <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
+                  {service.description}
+                </p>
+
+                <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
+
+                  <span className="text-sm text-slate-500">
+                    {service.vendor.businessName}
+                  </span>
+
+                  <span className="font-bold text-slate-950">
+                    ₹
+                    {Number(
+                      service.price
+                    ).toLocaleString("en-IN")}
+                  </span>
+
+                </div>
+
+              </Link>
+            ))}
+
+          </div>
         </section>
 
       </div>
