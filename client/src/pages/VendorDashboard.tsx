@@ -881,29 +881,18 @@ function VendorDashboard() {
                     </div>
                   </div>
 
-                  <div className="mt-6 flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
-                    <Link
-                      to={`/services/${booking.slot.service.id}`}
-                      className="rounded-lg border border-slate-200 px-5 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      View service
-                    </Link>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        confirmBooking(booking.id)
-                      }
-                      disabled={
-                        actionLoading === booking.id
-                      }
-                      className="rounded-lg bg-slate-950 px-5 py-2.5 text-sm font-semibold !text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-slate-300"
-                    >
-                      {actionLoading === booking.id
-                        ? "Confirming..."
-                        : "Confirm booking"}
-                    </button>
-                  </div>
+                  <div className="mt-6 flex justify-end border-t border-slate-100 pt-5">
+  <button
+    type="button"
+    onClick={() => confirmBooking(booking.id)}
+    disabled={actionLoading === booking.id}
+    className="rounded-lg bg-slate-950 px-5 py-2.5 text-sm font-semibold !text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+  >
+    {actionLoading === booking.id
+      ? "Confirming..."
+      : "Confirm booking"}
+  </button>
+</div>
                 </div>
               ))}
             </div>
