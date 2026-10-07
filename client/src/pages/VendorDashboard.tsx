@@ -1,164 +1,210 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
+import { Link, useNavigate } from "react-router-dom";
 
 const API_URL = "http://localhost:5000/api";
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-}
-
-interface VendorBooking {
-  id: string;
-  status: "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
-  createdAt: string;
-
-  user: {
-    id: string;
-    name: string;
-    email: string;
-  };
-
-  slot: {
-    id: string;
-    startTime: string;
-    endTime: string;
-
-    service: {
-      id: string;
-      title: string;
-      price: string;
-
-      category: {
-        name: string;
-      };
-    };
-  };
-}
-
-interface VendorSlot {
-  id: string;
-  startTime: string;
-  endTime: string;
-
-  booking: {
-    id: string;
-    status: "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
-    user: {
-      name: string;
-    };
-  } | null;
-}
 
 interface VendorService {
   id: string;
   title: string;
   description: string;
   price: string;
-
+  isActive: boolean;
   category: {
     id: string;
     name: string;
   };
+  _count: {
+    slots: number;
+    reviews: number;
+  };
+}
 
+interface Booking {
+  id: string;
+  status: "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
+  createdAt: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  slot: {
+    startTime: string;
+    endTime: string;
+    service: {
+      id: string;
+      title: string;
+      price: string;
+      category: {
+        id: string;
+        name: string;
+      };
+    };
+  } | null;
+}
+
+interface VendorSlot {
+  id: string;
+  startTime: string;
+  endTime: string;
+  booking: {
+    id: string;
+    status: string;
+    user: {
+      name: string;
+    };
+  } | null;
+  serviceId: string;
+}
+
+interface SlotService {
+  id: string;
+  title: string;
+  category: {
+    id: string;
+    name: string;
+  };
   slots: VendorSlot[];
+}
+
+interface CurrentUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
 }
 
 function VendorDashboard() {
   const navigate = useNavigate();
 
-  const [user, setUser] = useState<User | null>(null);
-  const [bookings, setBookings] = useState<VendorBooking[]>([]);
+  const [user, setUser] = useState<CurrentUser | null>(null);
+
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [services, setServices] = useState<VendorService[]>([]);
+  const [slotServices, setSlotServices] = useState<SlotService[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [servicesLoading, setServicesLoading] = useState(true);
+  const [slotsLoading, setSlotsLoading] = useState(true);
+
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [slotLoading, setSlotLoading] = useState(false);
-  const [error, setError] = useState("");
 
-  const [selectedServiceId, setSelectedServiceId] = useState("");
-  const [showSlotForm, setShowSlotForm] = useState(false);
+  const [serviceId, setServiceId] = useState("");
+  const [date, setDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
 
-  const [slotForm, setSlotForm] = useState({
-    date: "",
-    startTime: "",
-    endTime: "",
-  });
+  const [slotMessage, setSlotMessage] = useState("");
+  const [slotError, setSlotError] = useState("");
+
+  const [serviceActionLoading, setServiceActionLoading] = useState<
+    string | null
+  >(null);
+
+  // Edit service state
+  const [editingService, setEditingService] =
+    useState<VendorService | null>(null);
+
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editPrice, setEditPrice] = useState("");
+
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [editMessage, setEditMessage] = useState("");
+
+  const fetchVendorServices = async () => {
+    try {
+      setServicesLoading(true);
+
+      const response = await axios.get(
+        `${API_URL}/services/vendor/mine`,
+        {
+          withCredentials: true,
+        }
+      );
+
+      setServices(response.data.services || []);
+    } catch (error) {
+      console.error("Failed to fetch vendor services:", error);
+    } finally {
+      setServicesLoading(false);
+    }
+  };
+
+  const fetchVendorSlots = async () => {
+    try {
+      setSlotsLoading(true);
+
+      const response = await axios.get(
+        `${API_URL}/slots/vendor`,
+        {
+          withCredentials: true,
+        }
+      );
+
+      setSlotServices(response.data.services || []);
+    } catch (error) {
+      console.error("Failed to fetch vendor slots:", error);
+    } finally {
+      setSlotsLoading(false);
+    }
+  };
+
+  const fetchVendorBookings = async () => {
+    try {
+      const response = await axios.get(
+        `${API_URL}/bookings/vendor`,
+        {
+          withCredentials: true,
+        }
+      );
+
+      setBookings(response.data.bookings || []);
+    } catch (error) {
+      console.error("Failed to fetch vendor bookings:", error);
+    }
+  };
+
+  const checkVendor = async () => {
+    try {
+      const response = await axios.get(
+        `${API_URL}/auth/me`,
+        {
+          withCredentials: true,
+        }
+      );
+
+      const currentUser = response.data.user;
+
+      if (currentUser.role !== "VENDOR") {
+        navigate("/dashboard");
+        return;
+      }
+
+      setUser(currentUser);
+
+      await Promise.all([
+        fetchVendorBookings(),
+        fetchVendorServices(),
+        fetchVendorSlots(),
+      ]);
+    } catch (error) {
+      console.error("Vendor authentication failed:", error);
+      navigate("/login");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadDashboard = async () => {
-      try {
-        setLoading(true);
-        setError("");
-
-        const userResponse = await axios.get(`${API_URL}/auth/me`, {
-          withCredentials: true,
-        });
-
-        const currentUser = userResponse.data.user;
-
-        if (currentUser.role !== "VENDOR") {
-          navigate("/dashboard", { replace: true });
-          return;
-        }
-
-        setUser(currentUser);
-
-        const [bookingsResponse, servicesResponse] =
-          await Promise.all([
-            axios.get(`${API_URL}/bookings/vendor`, {
-              withCredentials: true,
-            }),
-            axios.get(`${API_URL}/slots/vendor`, {
-              withCredentials: true,
-            }),
-          ]);
-
-        setBookings(bookingsResponse.data.bookings || []);
-        setServices(servicesResponse.data.services || []);
-      } catch (error: any) {
-        console.error("Vendor dashboard error:", error);
-
-        if (error.response?.status === 401) {
-          navigate("/login", { replace: true });
-          return;
-        }
-
-        setError(
-          error.response?.data?.message ||
-            "Unable to load vendor dashboard."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadDashboard();
-  }, [navigate]);
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-IN", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
-  const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString("en-IN", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  };
+    checkVendor();
+  }, []);
 
   const confirmBooking = async (bookingId: string) => {
     try {
       setActionLoading(bookingId);
-      setError("");
 
       await axios.patch(
         `${API_URL}/bookings/${bookingId}/confirm`,
@@ -168,22 +214,12 @@ function VendorDashboard() {
         }
       );
 
-      setBookings((currentBookings) =>
-        currentBookings.map((booking) =>
-          booking.id === bookingId
-            ? {
-                ...booking,
-                status: "CONFIRMED",
-              }
-            : booking
-        )
-      );
+      await fetchVendorBookings();
+      await fetchVendorSlots();
     } catch (error: any) {
-      console.error("Confirm booking error:", error);
-
-      setError(
-        error.response?.data?.message ||
-          "Unable to confirm this booking."
+      alert(
+        error?.response?.data?.message ||
+          "Unable to confirm booking"
       );
     } finally {
       setActionLoading(null);
@@ -193,7 +229,6 @@ function VendorDashboard() {
   const completeBooking = async (bookingId: string) => {
     try {
       setActionLoading(bookingId);
-      setError("");
 
       await axios.patch(
         `${API_URL}/bookings/${bookingId}/complete`,
@@ -203,73 +238,53 @@ function VendorDashboard() {
         }
       );
 
-      setBookings((currentBookings) =>
-        currentBookings.map((booking) =>
-          booking.id === bookingId
-            ? {
-                ...booking,
-                status: "COMPLETED",
-              }
-            : booking
-        )
-      );
+      await fetchVendorBookings();
+      await fetchVendorSlots();
     } catch (error: any) {
-      console.error("Complete booking error:", error);
-
-      setError(
-        error.response?.data?.message ||
-          "Unable to complete this booking."
+      alert(
+        error?.response?.data?.message ||
+          "Unable to complete booking"
       );
     } finally {
       setActionLoading(null);
     }
   };
 
-  const handleCreateSlot = async (
-    event: React.FormEvent<HTMLFormElement>
+  const createAvailability = async (
+    event: React.FormEvent
   ) => {
     event.preventDefault();
 
-    if (!selectedServiceId) {
-      setError("Please select a service first.");
+    setSlotMessage("");
+    setSlotError("");
+
+    if (!serviceId || !date || !startTime || !endTime) {
+      setSlotError("Please fill all availability fields.");
       return;
     }
 
-    if (
-      !slotForm.date ||
-      !slotForm.startTime ||
-      !slotForm.endTime
-    ) {
-      setError("Please fill in date, start time and end time.");
+    const startDateTime = new Date(
+      `${date}T${startTime}`
+    );
+
+    const endDateTime = new Date(
+      `${date}T${endTime}`
+    );
+
+    if (endDateTime <= startDateTime) {
+      setSlotError(
+        "End time must be later than start time."
+      );
       return;
     }
 
     try {
-      setSlotLoading(true);
-      setError("");
-
-      const startDateTime = new Date(
-        `${slotForm.date}T${slotForm.startTime}`
-      );
-
-      const endDateTime = new Date(
-        `${slotForm.date}T${slotForm.endTime}`
-      );
-
-      if (startDateTime >= endDateTime) {
-        setError("End time must be after start time.");
-        return;
-      }
-
-      if (startDateTime <= new Date()) {
-        setError("Availability slot must be in the future.");
-        return;
-      }
+      setActionLoading("create-slot");
 
       await axios.post(
         `${API_URL}/slots`,
         {
-          serviceId: selectedServiceId,
+          serviceId,
           startTime: startDateTime.toISOString(),
           endTime: endDateTime.toISOString(),
         },
@@ -278,32 +293,157 @@ function VendorDashboard() {
         }
       );
 
-      const servicesResponse = await axios.get(
-        `${API_URL}/slots/vendor`,
+      setSlotMessage(
+        "Availability created successfully."
+      );
+
+      setDate("");
+      setStartTime("");
+      setEndTime("");
+
+      await fetchVendorSlots();
+      await fetchVendorServices();
+    } catch (error: any) {
+      setSlotError(
+        error?.response?.data?.message ||
+          "Unable to create availability."
+      );
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const toggleServiceStatus = async (
+    currentService: VendorService
+  ) => {
+    try {
+      setServiceActionLoading(currentService.id);
+
+      await axios.patch(
+        `${API_URL}/services/${currentService.id}/status`,
+        {},
         {
           withCredentials: true,
         }
       );
 
-      setServices(servicesResponse.data.services || []);
-
-      setSlotForm({
-        date: "",
-        startTime: "",
-        endTime: "",
-      });
-
-      setShowSlotForm(false);
+      await fetchVendorServices();
+      await fetchVendorSlots();
     } catch (error: any) {
-      console.error("Create slot error:", error);
-
-      setError(
-        error.response?.data?.message ||
-          "Unable to create availability slot."
+      alert(
+        error?.response?.data?.message ||
+          "Unable to update service status."
       );
     } finally {
-      setSlotLoading(false);
+      setServiceActionLoading(null);
     }
+  };
+
+  // Start editing a service
+  const startEditingService = (service: VendorService) => {
+    setEditingService(service);
+
+    setEditTitle(service.title);
+    setEditDescription(service.description);
+    setEditPrice(String(service.price));
+
+    setEditError("");
+    setEditMessage("");
+  };
+
+  // Cancel editing
+  const cancelEditingService = () => {
+    setEditingService(null);
+
+    setEditTitle("");
+    setEditDescription("");
+    setEditPrice("");
+
+    setEditError("");
+    setEditMessage("");
+  };
+
+  // Update service
+  const updateService = async (
+    event: React.FormEvent
+  ) => {
+    event.preventDefault();
+
+    if (!editingService) {
+      return;
+    }
+
+    setEditError("");
+    setEditMessage("");
+
+    if (editTitle.trim().length < 3) {
+      setEditError(
+        "Service title must be at least 3 characters."
+      );
+      return;
+    }
+
+    if (editDescription.trim().length < 10) {
+      setEditError(
+        "Description must be at least 10 characters."
+      );
+      return;
+    }
+
+    const price = Number(editPrice);
+
+    if (!Number.isFinite(price) || price <= 0) {
+      setEditError(
+        "Price must be a valid positive number."
+      );
+      return;
+    }
+
+    try {
+      setEditLoading(true);
+
+      await axios.patch(
+        `${API_URL}/services/${editingService.id}`,
+        {
+          title: editTitle.trim(),
+          description: editDescription.trim(),
+          price,
+          categoryId: editingService.category.id,
+        },
+        {
+          withCredentials: true,
+        }
+      );
+
+      setEditMessage(
+        "Service updated successfully."
+      );
+
+      await fetchVendorServices();
+      await fetchVendorSlots();
+
+      setTimeout(() => {
+        setEditingService(null);
+        setEditMessage("");
+      }, 1000);
+    } catch (error: any) {
+      setEditError(
+        error?.response?.data?.message ||
+          "Unable to update service."
+      );
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const formatDateTime = (dateString: string) => {
+    return new Date(dateString).toLocaleString(
+      "en-IN",
+      {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }
+    );
   };
 
   const pendingBookings = bookings.filter(
@@ -321,21 +461,10 @@ function VendorDashboard() {
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-50">
-        <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
-          <div className="h-8 w-72 animate-pulse rounded bg-slate-200" />
-
-          <div className="mt-3 h-5 w-96 animate-pulse rounded bg-slate-100" />
-
-          <div className="mt-8 grid gap-4 sm:grid-cols-3">
-            {[1, 2, 3].map((item) => (
-              <div
-                key={item}
-                className="h-28 animate-pulse rounded-2xl bg-white"
-              />
-            ))}
-          </div>
-
-          <div className="mt-8 h-72 animate-pulse rounded-2xl bg-white" />
+        <div className="mx-auto flex min-h-screen max-w-7xl items-center justify-center px-6">
+          <p className="text-sm text-slate-500">
+            Loading vendor dashboard...
+          </p>
         </div>
       </main>
     );
@@ -343,586 +472,715 @@ function VendorDashboard() {
 
   return (
     <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 
         {/* Header */}
-
-        <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+        <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
             <p className="text-sm font-semibold text-blue-600">
-              Vendor dashboard
+              Vendor workspace
             </p>
 
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-              Welcome back, {user?.name}
+            <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
+              Welcome, {user?.name}
             </h1>
 
-            <p className="mt-2 text-sm text-slate-600">
-              Manage bookings, services and your availability.
+            <p className="mt-2 text-sm text-slate-500">
+              Manage your services, availability and customer bookings.
             </p>
           </div>
 
           <Link
             to="/services"
-            className="inline-flex w-fit rounded-lg border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            className="inline-flex w-fit items-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold !text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
           >
             Browse marketplace
           </Link>
         </div>
 
-        {/* Error */}
-
-        {error && (
-          <div className="mt-6 flex items-start justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-            <p className="text-sm font-medium text-red-700">
-              {error}
-            </p>
-
-            <button
-              type="button"
-              onClick={() => setError("")}
-              className="text-sm font-semibold text-red-600"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-
         {/* Stats */}
-
-        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+        <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">
+            <p className="text-sm text-slate-500">
+              Total services
+            </p>
+
+            <p className="mt-2 text-3xl font-bold text-slate-950">
+              {services.length}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-500">
               Pending requests
             </p>
 
-            <p className="mt-2 text-3xl font-bold text-slate-950">
+            <p className="mt-2 text-3xl font-bold text-amber-600">
               {pendingBookings.length}
             </p>
-
-            <p className="mt-1 text-xs text-slate-400">
-              Need your attention
-            </p>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">
-              Confirmed bookings
+            <p className="text-sm text-slate-500">
+              Confirmed
             </p>
 
-            <p className="mt-2 text-3xl font-bold text-slate-950">
+            <p className="mt-2 text-3xl font-bold text-blue-600">
               {confirmedBookings.length}
             </p>
-
-            <p className="mt-1 text-xs text-slate-400">
-              Upcoming services
-            </p>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">
+            <p className="text-sm text-slate-500">
               Completed
             </p>
 
-            <p className="mt-2 text-3xl font-bold text-slate-950">
+            <p className="mt-2 text-3xl font-bold text-emerald-600">
               {completedBookings.length}
-            </p>
-
-            <p className="mt-1 text-xs text-slate-400">
-              Successfully delivered
             </p>
           </div>
 
         </div>
 
-        {/* Availability Management */}
+        {/* My Services */}
+        <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
 
-        <section className="mt-10">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <div>
-              <p className="text-sm font-semibold text-blue-600">
-                Schedule
-              </p>
-
-              <h2 className="mt-1 text-xl font-bold text-slate-950">
-                Availability management
+              <h2 className="text-xl font-bold text-slate-950">
+                My Services
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Create time slots when customers can book your services.
+                Manage the services you offer to customers.
               </p>
             </div>
 
-            {services.length > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSlotForm((current) => !current);
-                  setError("");
-                }}
-                className="rounded-lg bg-slate-950 px-5 py-2.5 text-sm font-semibold !text-white transition hover:bg-blue-600"
-              >
-                {showSlotForm
-                  ? "Close"
-                  : "+ Add availability"}
-              </button>
-            )}
+            <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
+              {services.length} services
+            </span>
           </div>
 
-          {/* Add slot form */}
+          {servicesLoading ? (
+            <div className="py-10 text-center text-sm text-slate-500">
+              Loading services...
+            </div>
+          ) : services.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 py-10 text-center">
+              <h3 className="font-semibold text-slate-900">
+                No services yet
+              </h3>
 
-          {showSlotForm && (
-            <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <p className="mt-1 text-sm text-slate-500">
+                Create your first service to start receiving bookings.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+
+              {services.map((service) => (
+                <div
+                  key={service.id}
+                  className="rounded-xl border border-slate-200 p-5 transition hover:border-slate-300 hover:shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-4">
+
+                    <div>
+                      <span className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+                        {service.category.name}
+                      </span>
+
+                      <h3 className="mt-1 text-lg font-bold text-slate-950">
+                        {service.title}
+                      </h3>
+                    </div>
+
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        service.isActive
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {service.isActive
+                        ? "Active"
+                        : "Inactive"}
+                    </span>
+
+                  </div>
+
+                  <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">
+                    {service.description}
+                  </p>
+
+                  <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
+
+                    <div>
+                      <p className="text-xs text-slate-500">
+                        Starting price
+                      </p>
+
+                      <p className="text-lg font-bold text-slate-950">
+                        ₹
+                        {Number(
+                          service.price
+                        ).toLocaleString("en-IN")}
+                      </p>
+                    </div>
+
+                    <div className="text-right text-xs text-slate-500">
+                      <p>
+                        {service._count.slots} slots
+                      </p>
+
+                      <p>
+                        {service._count.reviews} reviews
+                      </p>
+                    </div>
+
+                  </div>
+
+                  <div className="mt-4 border-t border-slate-100 pt-4">
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        startEditingService(service)
+                      }
+                      className="mb-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold !text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Edit service
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        toggleServiceStatus(service)
+                      }
+                      disabled={
+                        serviceActionLoading === service.id
+                      }
+                      className={`w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                        service.isActive
+                          ? "border border-red-200 bg-white !text-red-600 hover:bg-red-50"
+                          : "bg-slate-950 !text-white hover:bg-blue-600"
+                      }`}
+                    >
+                      {serviceActionLoading === service.id
+                        ? "Updating..."
+                        : service.isActive
+                        ? "Deactivate service"
+                        : "Activate service"}
+                    </button>
+
+                  </div>
+                </div>
+              ))}
+
+            </div>
+          )}
+
+          {/* Edit Service Form */}
+          {editingService && (
+            <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50/40 p-6">
+
               <div className="mb-5">
-                <h3 className="text-base font-bold text-slate-950">
-                  Create availability slot
+                <h3 className="text-lg font-bold text-slate-950">
+                  Edit Service
                 </h3>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  Customers will be able to book this slot once it is created.
+                  Update the details of your service.
                 </p>
               </div>
 
               <form
-                onSubmit={handleCreateSlot}
-                className="grid gap-5 md:grid-cols-4"
+                onSubmit={updateService}
+                className="space-y-5"
               >
-                <div className="md:col-span-1">
-                  <label className="text-sm font-semibold text-slate-700">
-                    Service
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    Service title
                   </label>
 
-                  <select
-                    value={selectedServiceId}
+                  <input
+                    type="text"
+                    value={editTitle}
                     onChange={(event) =>
-                      setSelectedServiceId(event.target.value)
+                      setEditTitle(event.target.value)
                     }
-                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    Description
+                  </label>
+
+                  <textarea
+                    value={editDescription}
+                    onChange={(event) =>
+                      setEditDescription(event.target.value)
+                    }
+                    rows={4}
+                    className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    Price
+                  </label>
+
+                  <input
+                    type="number"
+                    min="1"
+                    value={editPrice}
+                    onChange={(event) =>
+                      setEditPrice(event.target.value)
+                    }
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+
+                {editError && (
+                  <div className="rounded-lg bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                    {editError}
+                  </div>
+                )}
+
+                {editMessage && (
+                  <div className="rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                    {editMessage}
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+
+                  <button
+                    type="button"
+                    onClick={cancelEditingService}
+                    disabled={editLoading}
+                    className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold !text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                   >
-                    <option value="">
-                      Select service
-                    </option>
+                    Cancel
+                  </button>
 
-                    {services.map((service) => (
-                      <option
-                        key={service.id}
-                        value={service.id}
-                      >
-                        {service.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">
-                    Date
-                  </label>
-
-                  <input
-                    type="date"
-                    value={slotForm.date}
-                    min={new Date().toISOString().split("T")[0]}
-                    onChange={(event) =>
-                      setSlotForm({
-                        ...slotForm,
-                        date: event.target.value,
-                      })
-                    }
-                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">
-                    Start time
-                  </label>
-
-                  <input
-                    type="time"
-                    value={slotForm.startTime}
-                    onChange={(event) =>
-                      setSlotForm({
-                        ...slotForm,
-                        startTime: event.target.value,
-                      })
-                    }
-                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-semibold text-slate-700">
-                    End time
-                  </label>
-
-                  <input
-                    type="time"
-                    value={slotForm.endTime}
-                    onChange={(event) =>
-                      setSlotForm({
-                        ...slotForm,
-                        endTime: event.target.value,
-                      })
-                    }
-                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                  />
-                </div>
-
-                <div className="flex items-end md:col-span-4 md:justify-end">
                   <button
                     type="submit"
-                    disabled={slotLoading}
-                    className="w-full rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold !text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 md:w-auto"
+                    disabled={editLoading}
+                    className="rounded-lg bg-slate-950 px-5 py-2.5 text-sm font-semibold !text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-slate-300"
                   >
-                    {slotLoading
-                      ? "Creating..."
-                      : "Create availability"}
+                    {editLoading
+                      ? "Saving..."
+                      : "Save changes"}
                   </button>
+
                 </div>
+
               </form>
             </div>
           )}
 
-          {/* Services and slots */}
-
-          {services.length === 0 ? (
-            <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-                <svg
-                  className="h-6 w-6 text-slate-500"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"
-                  />
-                </svg>
-              </div>
-
-              <h3 className="mt-4 text-sm font-semibold text-slate-900">
-                No active services
-              </h3>
-
-              <p className="mt-1 text-sm text-slate-500">
-                Create a service first before adding availability.
-              </p>
-            </div>
-          ) : (
-            <div className="mt-5 space-y-4">
-              {services.map((service) => (
-                <div
-                  key={service.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
-                >
-                  <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-bold text-slate-950">
-                          {service.title}
-                        </h3>
-
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                          {service.category.name}
-                        </span>
-                      </div>
-
-                      <p className="mt-2 text-sm text-slate-500">
-                        ₹
-                        {Number(service.price).toLocaleString(
-                          "en-IN"
-                        )}{" "}
-                        per booking
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedServiceId(service.id);
-                        setShowSlotForm(true);
-                        setError("");
-                      }}
-                      className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Add slot
-                    </button>
-                  </div>
-
-                  <div className="mt-5 border-t border-slate-100 pt-5">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-sm font-semibold text-slate-900">
-                          Upcoming availability
-                        </h4>
-
-                        <p className="mt-1 text-xs text-slate-500">
-                          {service.slots.length} upcoming{" "}
-                          {service.slots.length === 1
-                            ? "slot"
-                            : "slots"}
-                        </p>
-                      </div>
-                    </div>
-
-                    {service.slots.length === 0 ? (
-                      <div className="mt-4 rounded-xl bg-slate-50 px-4 py-6 text-center">
-                        <p className="text-sm font-medium text-slate-600">
-                          No availability added yet
-                        </p>
-
-                        <p className="mt-1 text-xs text-slate-400">
-                          Add a slot so customers can book this service.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                        {service.slots.map((slot) => {
-                          const isBooked = Boolean(slot.booking);
-
-                          return (
-                            <div
-                              key={slot.id}
-                              className="rounded-xl border border-slate-200 bg-slate-50 p-4"
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-sm font-semibold text-slate-900">
-                                    {formatDate(
-                                      slot.startTime
-                                    )}
-                                  </p>
-
-                                  <p className="mt-1 text-sm text-slate-600">
-                                    {formatTime(
-                                      slot.startTime
-                                    )}
-                                    {" – "}
-                                    {formatTime(
-                                      slot.endTime
-                                    )}
-                                  </p>
-                                </div>
-
-                                <span
-                                  className={
-                                    isBooked
-                                      ? "rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700"
-                                      : "rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-semibold text-green-700"
-                                  }
-                                >
-                                  {isBooked
-                                    ? "BOOKED"
-                                    : "AVAILABLE"}
-                                </span>
-                              </div>
-
-                              {isBooked && slot.booking ? (
-                                <div className="mt-4 border-t border-slate-200 pt-3">
-                                  <p className="text-xs text-slate-400">
-                                    Customer
-                                  </p>
-
-                                  <p className="mt-1 text-sm font-semibold text-slate-800">
-                                    {slot.booking.user.name}
-                                  </p>
-
-                                  <p className="mt-1 text-xs text-slate-500">
-                                    {slot.booking.status}
-                                  </p>
-                                </div>
-                              ) : (
-                                <div className="mt-4 border-t border-slate-200 pt-3">
-                                  <p className="text-xs text-slate-500">
-                                    Customers can book this time slot.
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </section>
 
-        {/* Pending bookings */}
+        {/* Availability Management */}
+        <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
 
-        <section className="mt-12">
-          <div>
+          <div className="mb-6">
             <h2 className="text-xl font-bold text-slate-950">
-              Booking requests
+              Availability Management
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Review and confirm customer service requests.
+              Add future time slots when customers can book your services.
+            </p>
+          </div>
+
+          <form
+            onSubmit={createAvailability}
+            className="grid gap-4 rounded-xl bg-slate-50 p-5 md:grid-cols-2 lg:grid-cols-4"
+          >
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Service
+              </label>
+
+              <select
+                value={serviceId}
+                onChange={(event) =>
+                  setServiceId(event.target.value)
+                }
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="">
+                  Select service
+                </option>
+
+                {services
+                  .filter((service) => service.isActive)
+                  .map((service) => (
+                    <option
+                      key={service.id}
+                      value={service.id}
+                    >
+                      {service.title}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Date
+              </label>
+
+              <input
+                type="date"
+                value={date}
+                onChange={(event) =>
+                  setDate(event.target.value)
+                }
+                min={
+                  new Date()
+                    .toISOString()
+                    .split("T")[0]
+                }
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Start time
+              </label>
+
+              <input
+                type="time"
+                value={startTime}
+                onChange={(event) =>
+                  setStartTime(event.target.value)
+                }
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                End time
+              </label>
+
+              <input
+                type="time"
+                value={endTime}
+                onChange={(event) =>
+                  setEndTime(event.target.value)
+                }
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+
+            <div className="md:col-span-2 lg:col-span-4">
+
+              <button
+                type="submit"
+                disabled={actionLoading === "create-slot"}
+                className="rounded-lg bg-slate-950 px-5 py-2.5 text-sm font-semibold !text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {actionLoading === "create-slot"
+                  ? "Creating..."
+                  : "Add availability"}
+              </button>
+
+            </div>
+
+          </form>
+
+          {slotMessage && (
+            <p className="mt-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+              {slotMessage}
+            </p>
+          )}
+
+          {slotError && (
+            <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {slotError}
+            </p>
+          )}
+
+        </section>
+
+        {/* Upcoming Availability */}
+        <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-slate-950">
+              Upcoming Availability
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              See which slots are available and which are already booked.
+            </p>
+          </div>
+
+          {slotsLoading ? (
+            <div className="py-8 text-center text-sm text-slate-500">
+              Loading availability...
+            </div>
+          ) : slotServices.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-sm text-slate-500">
+              No upcoming availability.
+            </div>
+          ) : (
+            <div className="space-y-6">
+
+              {slotServices.map((service) => (
+                <div key={service.id}>
+
+                  <div className="mb-3">
+                    <h3 className="font-semibold text-slate-950">
+                      {service.title}
+                    </h3>
+
+                    <p className="text-xs text-slate-500">
+                      {service.category.name}
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+
+                    {service.slots.map((slot) => (
+                      <div
+                        key={slot.id}
+                        className="rounded-xl border border-slate-200 p-4"
+                      >
+
+                        <div className="flex items-start justify-between gap-3">
+
+                          <div>
+                            <p className="text-sm font-semibold text-slate-950">
+                              {formatDateTime(
+                                slot.startTime
+                              )}
+                            </p>
+
+                            <p className="mt-1 text-xs text-slate-500">
+                              to{" "}
+                              {new Date(
+                                slot.endTime
+                              ).toLocaleTimeString(
+                                "en-IN",
+                                {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                }
+                              )}
+                            </p>
+                          </div>
+
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                              slot.booking
+                                ? "bg-amber-50 text-amber-700"
+                                : "bg-emerald-50 text-emerald-700"
+                            }`}
+                          >
+                            {slot.booking
+                              ? slot.booking.status
+                              : "AVAILABLE"}
+                          </span>
+
+                        </div>
+
+                        {slot.booking && (
+                          <p className="mt-3 text-xs text-slate-500">
+                            Customer:{" "}
+                            <span className="font-medium text-slate-700">
+                              {slot.booking.user.name}
+                            </span>
+                          </p>
+                        )}
+
+                      </div>
+                    ))}
+
+                  </div>
+
+                </div>
+              ))}
+
+            </div>
+          )}
+
+        </section>
+
+        {/* Pending Bookings */}
+        <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-slate-950">
+              Booking Requests
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Review and confirm new customer booking requests.
             </p>
           </div>
 
           {pendingBookings.length === 0 ? (
-            <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-                <svg
-                  className="h-6 w-6 text-slate-500"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v10a2 2 0 01-2-2V6a2 2 0 012-2z"
-                  />
-                </svg>
-              </div>
-
-              <h3 className="mt-4 text-sm font-semibold text-slate-900">
-                No pending requests
-              </h3>
-
-              <p className="mt-1 text-sm text-slate-500">
-                New customer bookings will appear here.
-              </p>
+            <div className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-sm text-slate-500">
+              No pending booking requests.
             </div>
           ) : (
-            <div className="mt-5 space-y-4">
+            <div className="space-y-4">
+
               {pendingBookings.map((booking) => (
                 <div
                   key={booking.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+                  className="rounded-xl border border-slate-200 p-5"
                 >
-                  <div className="flex flex-col justify-between gap-6 lg:flex-row">
-                    <div className="flex min-w-0 gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-950 text-sm font-bold !text-white">
-                        {booking.user.name
-                          .charAt(0)
-                          .toUpperCase()}
-                      </div>
 
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-semibold text-slate-950">
-                            {booking.slot.service.title}
-                          </h3>
+                  <div className="flex flex-col justify-between gap-4 md:flex-row">
 
-                          <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
-                            PENDING
-                          </span>
-                        </div>
+                    <div>
+                      <span className="text-xs font-semibold uppercase tracking-wide text-amber-600">
+                        Pending request
+                      </span>
 
-                        <p className="mt-1 text-sm text-slate-500">
-                          Customer:{" "}
-                          <span className="font-medium text-slate-700">
-                            {booking.user.name}
-                          </span>
-                        </p>
+                      <h3 className="mt-1 text-lg font-bold text-slate-950">
+                        {booking.slot?.service.title ||
+                          "Service"}
+                      </h3>
 
-                        <p className="mt-1 text-sm text-slate-500">
-                          {booking.user.email}
-                        </p>
-                      </div>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {booking.slot?.service.category.name}
+                      </p>
                     </div>
 
-                    <div className="grid gap-4 sm:grid-cols-3 lg:min-w-[500px]">
-                      <div>
-                        <p className="text-xs text-slate-400">
-                          Category
-                        </p>
+                    <span className="h-fit rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                      PENDING
+                    </span>
 
-                        <p className="mt-1 text-sm font-semibold text-slate-800">
-                          {booking.slot.service.category.name}
-                        </p>
-                      </div>
+                  </div>
 
-                      <div>
-                        <p className="text-xs text-slate-400">
-                          Appointment
-                        </p>
+                  <div className="mt-5 grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-2 lg:grid-cols-4">
 
-                        <p className="mt-1 text-sm font-semibold text-slate-800">
-                          {formatDate(
-                            booking.slot.startTime
-                          )}
-                        </p>
+                    <div>
+                      <p className="text-xs text-slate-500">
+                        Customer
+                      </p>
 
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          {formatTime(
-                            booking.slot.startTime
-                          )}
-                          {" – "}
-                          {formatTime(
-                            booking.slot.endTime
-                          )}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs text-slate-400">
-                          Service price
-                        </p>
-
-                        <p className="mt-1 text-lg font-bold text-slate-950">
-                          ₹
-                          {Number(
-                            booking.slot.service.price
-                          ).toLocaleString("en-IN")}
-                        </p>
-                      </div>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                        {booking.user.name}
+                      </p>
                     </div>
+
+                    <div>
+                      <p className="text-xs text-slate-500">
+                        Email
+                      </p>
+
+                      <p className="mt-1 break-all text-sm font-medium text-slate-700">
+                        {booking.user.email}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-slate-500">
+                        Appointment
+                      </p>
+
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                        {booking.slot
+                          ? formatDateTime(
+                              booking.slot.startTime
+                            )
+                          : "Unavailable"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-slate-500">
+                        Price
+                      </p>
+
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                        ₹
+                        {Number(
+                          booking.slot?.service.price || 0
+                        ).toLocaleString("en-IN")}
+                      </p>
+                    </div>
+
                   </div>
 
                   <div className="mt-6 flex justify-end border-t border-slate-100 pt-5">
-  <button
-    type="button"
-    onClick={() => confirmBooking(booking.id)}
-    disabled={actionLoading === booking.id}
-    className="rounded-lg bg-slate-950 px-5 py-2.5 text-sm font-semibold !text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-slate-300"
-  >
-    {actionLoading === booking.id
-      ? "Confirming..."
-      : "Confirm booking"}
-  </button>
-</div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        confirmBooking(booking.id)
+                      }
+                      disabled={
+                        actionLoading === booking.id
+                      }
+                      className="rounded-lg bg-slate-950 px-5 py-2.5 text-sm font-semibold !text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      {actionLoading === booking.id
+                        ? "Confirming..."
+                        : "Confirm booking"}
+                    </button>
+
+                  </div>
+
                 </div>
               ))}
+
             </div>
           )}
+
         </section>
 
-        {/* Confirmed bookings */}
+        {/* Confirmed Bookings */}
+        <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
 
-        {confirmedBookings.length > 0 && (
-          <section className="mt-12">
-            <div>
-              <h2 className="text-xl font-bold text-slate-950">
-                Upcoming confirmed bookings
-              </h2>
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-slate-950">
+              Confirmed Bookings
+            </h2>
 
-              <p className="mt-1 text-sm text-slate-500">
-                Services that are ready to be delivered.
-              </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Manage upcoming confirmed appointments.
+            </p>
+          </div>
+
+          {confirmedBookings.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-sm text-slate-500">
+              No confirmed bookings.
             </div>
+          ) : (
+            <div className="space-y-4">
 
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
               {confirmedBookings.map((booking) => (
                 <div
                   key={booking.id}
-                  className="rounded-2xl border border-green-200 bg-white p-5 shadow-sm"
+                  className="rounded-xl border border-slate-200 p-5"
                 >
-                  <div className="flex items-start justify-between gap-4">
+
+                  <div className="flex flex-col justify-between gap-4 md:flex-row">
+
                     <div>
-                      <h3 className="font-semibold text-slate-950">
-                        {booking.slot.service.title}
+                      <span className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+                        Confirmed appointment
+                      </span>
+
+                      <h3 className="mt-1 text-lg font-bold text-slate-950">
+                        {booking.slot?.service.title ||
+                          "Service"}
                       </h3>
 
                       <p className="mt-1 text-sm text-slate-500">
@@ -930,48 +1188,102 @@ function VendorDashboard() {
                       </p>
                     </div>
 
-                    <span className="rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-semibold text-green-700">
+                    <span className="h-fit rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
                       CONFIRMED
                     </span>
+
                   </div>
 
-                  <div className="mt-5 rounded-xl bg-slate-50 p-4">
-                    <p className="text-sm font-semibold text-slate-800">
-                      {formatDate(
-                        booking.slot.startTime
-                      )}
+                  <div className="mt-5 flex flex-col justify-between gap-4 border-t border-slate-100 pt-5 sm:flex-row sm:items-center">
+
+                    <div>
+                      <p className="text-xs text-slate-500">
+                        Appointment
+                      </p>
+
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                        {booking.slot
+                          ? formatDateTime(
+                              booking.slot.startTime
+                            )
+                          : "Unavailable"}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        completeBooking(booking.id)
+                      }
+                      disabled={
+                        actionLoading === booking.id
+                      }
+                      className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold !text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      {actionLoading === booking.id
+                        ? "Completing..."
+                        : "Mark as completed"}
+                    </button>
+
+                  </div>
+
+                </div>
+              ))}
+
+            </div>
+          )}
+
+        </section>
+
+        {/* Completed */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-slate-950">
+              Completed Bookings
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Your completed service history.
+            </p>
+          </div>
+
+          {completedBookings.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 py-8 text-center text-sm text-slate-500">
+              No completed bookings yet.
+            </div>
+          ) : (
+            <div className="space-y-3">
+
+              {completedBookings.map((booking) => (
+                <div
+                  key={booking.id}
+                  className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center"
+                >
+
+                  <div>
+                    <p className="font-semibold text-slate-950">
+                      {booking.slot?.service.title ||
+                        "Service"}
                     </p>
 
                     <p className="mt-1 text-sm text-slate-500">
-                      {formatTime(
-                        booking.slot.startTime
-                      )}
-                      {" – "}
-                      {formatTime(
-                        booking.slot.endTime
-                      )}
+                      Customer: {booking.user.name}
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      completeBooking(booking.id)
-                    }
-                    disabled={
-                      actionLoading === booking.id
-                    }
-                    className="mt-4 w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {actionLoading === booking.id
-                      ? "Updating..."
-                      : "Mark as completed"}
-                  </button>
+                  <span className="w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                    COMPLETED
+                  </span>
+
                 </div>
               ))}
+
             </div>
-          </section>
-        )}
+          )}
+
+        </section>
+
       </div>
     </main>
   );
