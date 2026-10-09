@@ -228,3 +228,184 @@ export const getVendorDashboard = async (
     });
   }
 };
+
+// GET CURRENT VENDOR PROFILE
+export const getVendorProfile = async (
+  req: Request & {
+    user?: {
+      userId: string;
+      role: string;
+    };
+  },
+  res: Response
+) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const vendorProfile = await prisma.vendorProfile.findUnique({
+      where: {
+        userId: req.user.userId,
+      },
+      select: {
+        id: true,
+        businessName: true,
+        description: true,
+        phone: true,
+        location: true,
+        isVerified: true,
+        createdAt: true,
+        updatedAt: true,
+        user: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!vendorProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor profile not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      vendorProfile,
+    });
+  } catch (error) {
+    console.error("Get vendor profile error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+
+// UPDATE CURRENT VENDOR PROFILE
+export const updateVendorProfile = async (
+  req: Request & {
+    user?: {
+      userId: string;
+      role: string;
+    };
+  },
+  res: Response
+) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const { businessName, description, phone, location } = req.body;
+
+    if (
+      typeof businessName !== "string" ||
+      businessName.trim().length < 2
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Business name must be at least 2 characters",
+      });
+    }
+
+    if (
+      description !== undefined &&
+      typeof description !== "string"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid description",
+      });
+    }
+
+    if (
+      phone !== undefined &&
+      typeof phone !== "string"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid phone number",
+      });
+    }
+
+    if (
+      location !== undefined &&
+      typeof location !== "string"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid location",
+      });
+    }
+
+    const existingProfile = await prisma.vendorProfile.findUnique({
+      where: {
+        userId: req.user.userId,
+      },
+    });
+
+    if (!existingProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor profile not found",
+      });
+    }
+
+    const updatedProfile = await prisma.vendorProfile.update({
+      where: {
+        userId: req.user.userId,
+      },
+      data: {
+        businessName: businessName.trim(),
+        description:
+          typeof description === "string"
+            ? description.trim()
+            : null,
+        phone:
+          typeof phone === "string"
+            ? phone.trim()
+            : null,
+        location:
+          typeof location === "string"
+            ? location.trim()
+            : null,
+      },
+      select: {
+        id: true,
+        businessName: true,
+        description: true,
+        phone: true,
+        location: true,
+        isVerified: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Vendor profile updated successfully",
+      vendorProfile: updatedProfile,
+    });
+  } catch (error) {
+    console.error("Update vendor profile error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};

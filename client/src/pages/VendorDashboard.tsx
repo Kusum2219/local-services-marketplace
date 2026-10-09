@@ -102,6 +102,16 @@ function VendorDashboard() {
     string | null
   >(null);
 
+  // Create service state
+const [showCreateService, setShowCreateService] = useState(false);
+const [newTitle, setNewTitle] = useState("");
+const [newDescription, setNewDescription] = useState("");
+const [newPrice, setNewPrice] = useState("");
+const [newCategoryId, setNewCategoryId] = useState("");
+const [createServiceLoading, setCreateServiceLoading] = useState(false);
+const [createServiceError, setCreateServiceError] = useState("");
+const [createServiceMessage, setCreateServiceMessage] = useState("");
+
   // Edit service state
   const [editingService, setEditingService] =
     useState<VendorService | null>(null);
@@ -436,6 +446,65 @@ function VendorDashboard() {
     }
   };
 
+  const createService = async (event: React.FormEvent) => {
+  event.preventDefault();
+
+  setCreateServiceError("");
+  setCreateServiceMessage("");
+
+  if (newTitle.trim().length < 3) {
+    setCreateServiceError("Title must be at least 3 characters.");
+    return;
+  }
+
+  if (newDescription.trim().length < 10) {
+    setCreateServiceError("Description must be at least 10 characters.");
+    return;
+  }
+
+  const price = Number(newPrice);
+
+  if (!Number.isFinite(price) || price <= 0) {
+    setCreateServiceError("Enter a valid price.");
+    return;
+  }
+
+  if (!newCategoryId) {
+    setCreateServiceError("Please select a category.");
+    return;
+  }
+
+  try {
+    setCreateServiceLoading(true);
+
+    await axios.post(
+      `${API_URL}/services`,
+      {
+        title: newTitle.trim(),
+        description: newDescription.trim(),
+        price,
+        categoryId: newCategoryId,
+      },
+      { withCredentials: true }
+    );
+
+    setCreateServiceMessage("Service created successfully.");
+    setNewTitle("");
+    setNewDescription("");
+    setNewPrice("");
+    setNewCategoryId("");
+
+    await fetchVendorServices();
+    await fetchVendorSlots();
+  } catch (error: any) {
+    setCreateServiceError(
+      error?.response?.data?.message || "Unable to create service."
+    );
+  } finally {
+    setCreateServiceLoading(false);
+  }
+};
+
   const formatDateTime = (dateString: string) => {
     return new Date(dateString).toLocaleString(
       "en-IN",
@@ -557,10 +626,94 @@ function VendorDashboard() {
               </p>
             </div>
 
+            <button
+  type="button"
+  onClick={() => {
+    setShowCreateService(!showCreateService);
+    setCreateServiceError("");
+    setCreateServiceMessage("");
+  }}
+  className="w-fit rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-600"
+>
+  {showCreateService ? "Cancel" : "+ Add New Service"}
+</button>
+
             <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
               {services.length} services
             </span>
           </div>
+
+          {showCreateService && (
+  <form
+    onSubmit={createService}
+    className="mb-6 space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-5"
+  >
+    <h3 className="text-lg font-bold text-slate-900">
+      Create a New Service
+    </h3>
+
+    <input
+      required
+      minLength={3}
+      value={newTitle}
+      onChange={(e) => setNewTitle(e.target.value)}
+      placeholder="Service title"
+      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
+    />
+
+    <textarea
+      required
+      minLength={10}
+      value={newDescription}
+      onChange={(e) => setNewDescription(e.target.value)}
+      placeholder="Describe your service"
+      rows={3}
+      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
+    />
+
+    <input
+      required
+      type="number"
+      min="1"
+      value={newPrice}
+      onChange={(e) => setNewPrice(e.target.value)}
+      placeholder="Price in ₹"
+      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
+    />
+
+    <select
+      required
+      value={newCategoryId}
+      onChange={(e) => setNewCategoryId(e.target.value)}
+      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
+    >
+      <option value="">Select category</option>
+      {Array.from(
+        new Map(services.map((s) => [s.category.id, s.category])).values()
+      ).map((category) => (
+        <option key={category.id} value={category.id}>
+          {category.name}
+        </option>
+      ))}
+    </select>
+
+    {createServiceError && (
+      <p className="text-sm text-red-600">{createServiceError}</p>
+    )}
+
+    {createServiceMessage && (
+      <p className="text-sm text-emerald-700">{createServiceMessage}</p>
+    )}
+
+    <button
+      type="submit"
+      disabled={createServiceLoading}
+      className="rounded-lg bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+    >
+      {createServiceLoading ? "Creating..." : "Create Service"}
+    </button>
+  </form>
+)}
 
           {servicesLoading ? (
             <div className="py-10 text-center text-sm text-slate-500">
