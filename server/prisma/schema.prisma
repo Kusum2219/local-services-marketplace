@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -20,13 +21,13 @@ enum BookingStatus {
 }
 
 model User {
-  id           String        @id @default(cuid())
-  name         String
-  email        String        @unique
-  passwordHash String
-  role         UserRole      @default(CUSTOMER)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id            String        @id @default(cuid())
+  name          String
+  email         String        @unique
+  passwordHash  String
+  role          UserRole      @default(CUSTOMER)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   vendorProfile VendorProfile?
   bookings      Booking[]
@@ -34,24 +35,24 @@ model User {
 }
 
 model VendorProfile {
-  id          String    @id @default(cuid())
-  userId      String    @unique
+  id           String   @id @default(cuid())
+  userId       String   @unique
   businessName String
-  description String?
-  phone       String?
-  location    String?
-  isVerified  Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  description  String?
+  phone        String?
+  location     String?
+  isVerified   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   services Service[]
 }
 
 model Category {
-  id        String    @id @default(cuid())
-  name      String    @unique
-  createdAt DateTime  @default(now())
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
 
   services Service[]
 }
@@ -68,7 +69,7 @@ model Service {
   updatedAt   DateTime @updatedAt
 
   vendor   VendorProfile      @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  category Category            @relation(fields: [categoryId], references: [id])
+  category Category           @relation(fields: [categoryId], references: [id])
   slots    AvailabilitySlot[]
   reviews  Review[]
 
@@ -83,8 +84,8 @@ model AvailabilitySlot {
   endTime   DateTime
   createdAt DateTime @default(now())
 
-  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  booking  Booking?
+  service Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  booking Booking?
 
   @@unique([serviceId, startTime])
   @@index([serviceId, startTime])
@@ -98,8 +99,9 @@ model Booking {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  user User             @relation(fields: [userId], references: [id])
-  slot AvailabilitySlot? @relation(fields: [slotId], references: [id])
+  user   User              @relation(fields: [userId], references: [id])
+  slot   AvailabilitySlot? @relation(fields: [slotId], references: [id])
+  review Review?
 
   @@index([userId])
   @@index([status])
@@ -109,14 +111,16 @@ model Review {
   id        String   @id @default(cuid())
   userId    String
   serviceId String
+  bookingId String? @unique
   rating    Int
   comment   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user    User    @relation(fields: [userId], references: [id])
-  service Service @relation(fields: [serviceId], references: [id])
-
-  @@unique([userId, serviceId])
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  booking Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  
   @@index([serviceId])
+  @@index([userId])
 }
