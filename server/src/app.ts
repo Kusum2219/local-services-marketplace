@@ -9,6 +9,7 @@ import categoryRoutes from "./routes/category.routes";
 import serviceRoutes from "./routes/service.routes";
 import slotRoutes from "./routes/slot.routes";
 import bookingRoutes from "./routes/booking.routes";
+import reviewRoutes from "./routes/review.routes";
 
 const app = express();
 
@@ -46,6 +47,8 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/services", serviceRoutes);
 app.use("/api/slots", slotRoutes);
 app.use("/api/bookings", bookingRoutes);
+app.use("/api/reviews", reviewRoutes);
+
 
 // Health check
 app.get("/api/health", (_req, res) => {
