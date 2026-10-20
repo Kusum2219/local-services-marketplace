@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import prisma from "../lib/prisma";
 
+
 export const createBooking = async (
   req: Request & {
     user?: {
@@ -19,109 +20,133 @@ export const createBooking = async (
       });
     }
 
+    // 2. Only customers can book services
+    if (req.user.role !== "CUSTOMER") {
+      return res.status(403).json({
+        success: false,
+        message: "Only customers can book services",
+      });
+    }
+
     const { slotId } = req.body;
 
-    // 2. Validate slot ID
-    if (
-      typeof slotId !== "string" ||
-      slotId.trim().length === 0
-    ) {
+    // 3. Validate slot ID
+    if (typeof slotId !== "string" || !slotId.trim()) {
       return res.status(400).json({
         success: false,
         message: "Slot ID is required",
       });
     }
 
-    // 3. Find the slot
-    const slot = await prisma.availabilitySlot.findUnique({
-      where: {
-        id: slotId,
-      },
-      include: {
-        service: {
-          select: {
-            id: true,
-            title: true,
-            price: true,
-            isActive: true,
-            vendorId: true,
+    // 4. Check availability and create booking atomically
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const slot = await tx.availabilitySlot.findUnique({
+          where: {
+            id: slotId,
           },
-        },
-        booking: true,
-      },
-    });
-
-    if (!slot) {
-      return res.status(404).json({
-        success: false,
-        message: "Availability slot not found",
-      });
-    }
-
-    // 4. Make sure service is active
-    if (!slot.service.isActive) {
-      return res.status(400).json({
-        success: false,
-        message: "This service is no longer available",
-      });
-    }
-
-    // 5. Prevent booking an already booked slot
-    if (slot.booking) {
-      return res.status(409).json({
-        success: false,
-        message: "This slot has already been booked",
-      });
-    }
-
-    // 6. Prevent booking a past slot
-    if (slot.startTime <= new Date()) {
-      return res.status(400).json({
-        success: false,
-        message: "This slot is no longer available",
-      });
-    }
-
-    // 7. Create booking
-    const booking = await prisma.booking.create({
-      data: {
-        userId: req.user.userId,
-        slotId: slot.id,
-        status: "PENDING",
-      },
-      include: {
-        slot: {
           include: {
             service: {
               select: {
                 id: true,
                 title: true,
                 price: true,
+                isActive: true,
+              },
+            },
+            booking: true,
+          },
+        });
+
+        if (!slot) {
+          return {
+            status: 404,
+            body: {
+              success: false,
+              message: "Availability slot not found",
+            },
+          };
+        }
+
+        if (!slot.service.isActive) {
+          return {
+            status: 400,
+            body: {
+              success: false,
+              message: "This service is no longer available",
+            },
+          };
+        }
+
+        if (slot.booking) {
+          return {
+            status: 409,
+            body: {
+              success: false,
+              message: "This slot has already been booked",
+            },
+          };
+        }
+
+        if (slot.startTime <= new Date()) {
+          return {
+            status: 400,
+            body: {
+              success: false,
+              message: "This slot is no longer available",
+            },
+          };
+        }
+
+        const booking = await tx.booking.create({
+          data: {
+            userId: req.user!.userId,
+            slotId: slot.id,
+            status: "PENDING",
+          },
+          include: {
+            slot: {
+              include: {
+                service: {
+                  select: {
+                    id: true,
+                    title: true,
+                    price: true,
+                  },
+                },
               },
             },
           },
-        },
-      },
-    });
+        });
 
-    return res.status(201).json({
-      success: true,
-      message: "Booking created successfully",
-      booking,
-    });
+        return {
+          status: 201,
+          body: {
+            success: true,
+            message: "Booking created successfully",
+            booking,
+          },
+        };
+      },
+      {
+        isolationLevel: "Serializable",
+      }
+    );
+
+    return res.status(result.status).json(result.body);
   } catch (error) {
     console.error("Create booking error:", error);
 
-    // Database-level protection against double booking
     if (
       typeof error === "object" &&
       error !== null &&
       "code" in error &&
-      error.code === "P2002"
+      (error.code === "P2002" || error.code === "P2034")
     ) {
       return res.status(409).json({
         success: false,
-        message: "This slot has already been booked",
+        message:
+          "This slot was booked by another customer. Please select another slot.",
       });
     }
 
@@ -131,6 +156,7 @@ export const createBooking = async (
     });
   }
 };
+
 
 
 export const getMyBookings = async (

@@ -3,6 +3,10 @@ import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
 
 const API_URL = "http://localhost:5000/api";
+interface Category {
+  id: string;
+  name: string;
+}
 
 interface VendorService {
   id: string;
@@ -82,6 +86,7 @@ function VendorDashboard() {
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [services, setServices] = useState<VendorService[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [slotServices, setSlotServices] = useState<SlotService[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -143,6 +148,22 @@ const [createServiceMessage, setCreateServiceMessage] = useState("");
     }
   };
 
+  const fetchCategories = async () => {
+  try {
+    const response = await axios.get(
+      `${API_URL}/categories`,
+      {
+        withCredentials: true,
+      }
+    );
+
+    setCategories(response.data.categories ?? []);
+  } catch (error) {
+    console.error("Failed to fetch categories:", error);
+    setCategories([]);
+  }
+};
+
   const fetchVendorSlots = async () => {
     try {
       setSlotsLoading(true);
@@ -196,10 +217,11 @@ const [createServiceMessage, setCreateServiceMessage] = useState("");
       setUser(currentUser);
 
       await Promise.all([
-        fetchVendorBookings(),
-        fetchVendorServices(),
-        fetchVendorSlots(),
-      ]);
+  fetchVendorBookings(),
+  fetchVendorServices(),
+  fetchVendorSlots(),
+  fetchCategories(),
+]);
     } catch (error) {
       console.error("Vendor authentication failed:", error);
       navigate("/login");
@@ -682,20 +704,19 @@ const [createServiceMessage, setCreateServiceMessage] = useState("");
     />
 
     <select
-      required
-      value={newCategoryId}
-      onChange={(e) => setNewCategoryId(e.target.value)}
-      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
-    >
-      <option value="">Select category</option>
-      {Array.from(
-        new Map(services.map((s) => [s.category.id, s.category])).values()
-      ).map((category) => (
-        <option key={category.id} value={category.id}>
-          {category.name}
-        </option>
-      ))}
-    </select>
+  required
+  value={newCategoryId}
+  onChange={(e) => setNewCategoryId(e.target.value)}
+  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
+>
+  <option value="">Select category</option>
+
+  {categories.map((category) => (
+    <option key={category.id} value={category.id}>
+      {category.name}
+    </option>
+  ))}
+</select>
 
     {createServiceError && (
       <p className="text-sm text-red-600">{createServiceError}</p>

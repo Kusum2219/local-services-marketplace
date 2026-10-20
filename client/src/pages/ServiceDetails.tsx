@@ -1,9 +1,33 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, type FormEvent } from "react";
+import axios from "axios";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   getServiceById,
   type Service,
 } from "../services/services";
+
+const API_URL = "http://localhost:5000/api";
+
+interface Review {
+  id: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  user: {
+    name: string;
+  };
+}
+
+interface ReviewBooking {
+  id: string;
+  status: string;
+  slot: {
+    service: {
+      id: string;
+      title: string;
+    };
+  } | null;
+}
 
 const serviceImages: Record<string, string> = {
   cleaning:
@@ -43,6 +67,18 @@ function ServiceDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Customer reviews
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [averageRating, setAverageRating] = useState(0);
+  const [totalReviews, setTotalReviews] = useState(0);
+  const [eligibleBookings, setEligibleBookings] = useState<ReviewBooking[]>([]);
+  const [selectedBookingId, setSelectedBookingId] = useState("");
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState("");
+  const [currentUserRole, setCurrentUserRole] = useState("");
+
   useEffect(() => {
     const loadService = async () => {
       if (!serviceId) {
@@ -68,8 +104,128 @@ function ServiceDetails() {
       }
     };
 
-    loadService();
+    void loadService();
   }, [serviceId]);
+
+  // Load public reviews for this service
+  const loadReviews = useCallback(async () => {
+    if (!serviceId) return;
+
+    try {
+      const response = await axios.get(
+        `${API_URL}/reviews/service/${serviceId}`
+      );
+
+      setReviews(response.data.reviews ?? []);
+      setAverageRating(response.data.averageRating ?? 0);
+      setTotalReviews(response.data.totalReviews ?? 0);
+    } catch (error) {
+      console.error("Failed to load reviews:", error);
+    }
+  }, [serviceId]);
+
+  // Load completed bookings belonging to the logged-in customer
+  useEffect(() => {
+    if (!serviceId) return;
+
+    void loadReviews();
+
+    let cancelled = false;
+
+    const loadEligibleBookings = async () => {
+      try {
+        const meResponse = await axios.get(`${API_URL}/auth/me`, {
+          withCredentials: true,
+        });
+
+        if (cancelled) return;
+
+        const role = meResponse.data.user?.role ?? "";
+        setCurrentUserRole(role);
+
+        if (role !== "CUSTOMER") return;
+
+        const bookingsResponse = await axios.get(
+          `${API_URL}/bookings/my`,
+          { withCredentials: true }
+        );
+
+        if (cancelled) return;
+
+        const bookings: ReviewBooking[] =
+          bookingsResponse.data.bookings ?? [];
+
+        const completed = bookings.filter(
+          (booking) =>
+            booking.status === "COMPLETED" &&
+            booking.slot?.service.id === serviceId
+        );
+
+        setEligibleBookings(completed);
+
+        if (completed.length > 0) {
+          setSelectedBookingId(completed[0].id);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Unable to load review eligibility:", error);
+        }
+      }
+    };
+
+    void loadEligibleBookings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [serviceId, loadReviews]);
+
+  const handleSubmitReview = async (
+    event: FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+    setReviewMessage("");
+
+    if (!selectedBookingId) {
+      setReviewMessage("Select a completed booking first.");
+      return;
+    }
+
+    try {
+      setReviewLoading(true);
+
+      await axios.post(
+        `${API_URL}/reviews`,
+        {
+          bookingId: selectedBookingId,
+          rating,
+          comment: comment.trim() || undefined,
+        },
+        { withCredentials: true }
+      );
+
+      setReviewMessage("Your review was submitted successfully.");
+      setComment("");
+
+      setEligibleBookings((current) =>
+        current.filter((booking) => booking.id !== selectedBookingId)
+      );
+
+      setSelectedBookingId("");
+      await loadReviews();
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        setReviewMessage(
+          error.response?.data?.message ??
+            "Unable to submit review. Please try again."
+        );
+      } else {
+        setReviewMessage("Unable to submit review. Please try again.");
+      }
+    } finally {
+      setReviewLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -104,7 +260,6 @@ function ServiceDetails() {
     return (
       <main className="min-h-screen bg-[#f7f7f5]">
         <div className="mx-auto max-w-3xl px-6 py-20 text-center">
-
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
             <svg
               className="h-7 w-7 text-slate-500"
@@ -144,12 +299,10 @@ function ServiceDetails() {
 
   return (
     <main className="min-h-screen bg-[#f7f7f5] text-slate-950">
-
       {/* Breadcrumb */}
 
       <div className="mx-auto max-w-7xl px-6 pt-7 lg:px-8">
         <div className="flex items-center gap-2 text-sm text-slate-500">
-
           <Link
             to="/services"
             className="transition hover:text-slate-950"
@@ -162,26 +315,20 @@ function ServiceDetails() {
           <span className="truncate text-slate-700">
             {service.title}
           </span>
-
         </div>
       </div>
 
       {/* Main Content */}
 
       <section className="mx-auto max-w-7xl px-6 py-8 lg:px-8 lg:py-10">
-
         <div className="grid items-start gap-8 lg:grid-cols-[1.25fr_0.75fr]">
-
           {/* Left */}
 
           <div>
-
             {/* Image */}
 
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-
               <div className="relative aspect-[16/9] overflow-hidden">
-
                 <img
                   src={image}
                   alt={service.title}
@@ -189,23 +336,17 @@ function ServiceDetails() {
                 />
 
                 <div className="absolute left-5 top-5">
-
                   <span className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm">
                     {service.category.name}
                   </span>
-
                 </div>
-
               </div>
 
               {/* Description */}
 
               <div className="p-7 lg:p-8">
-
                 <div className="flex flex-wrap items-start justify-between gap-4">
-
                   <div>
-
                     <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                       Professional service
                     </p>
@@ -213,25 +354,19 @@ function ServiceDetails() {
                     <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-slate-950 sm:text-4xl">
                       {service.title}
                     </h1>
-
                   </div>
 
                   {service.vendor.isVerified && (
                     <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
-
                       <span className="flex h-4 w-4 items-center justify-center rounded-full bg-slate-950 text-[9px] !text-white">
                         ✓
                       </span>
-
                       Verified provider
-
                     </span>
                   )}
-
                 </div>
 
                 <div className="mt-7 border-t border-slate-100 pt-7">
-
                   <h2 className="text-lg font-semibold text-slate-950">
                     About this service
                   </h2>
@@ -239,24 +374,19 @@ function ServiceDetails() {
                   <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
                     {service.description}
                   </p>
-
                 </div>
-
               </div>
             </div>
 
             {/* Provider */}
 
             <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-7">
-
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                 Service provider
               </p>
 
               <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-
                 <div className="flex items-center gap-4">
-
                   <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-950 text-lg font-bold !text-white">
                     {service.vendor.businessName
                       .charAt(0)
@@ -264,9 +394,7 @@ function ServiceDetails() {
                   </div>
 
                   <div>
-
                     <div className="flex flex-wrap items-center gap-2">
-
                       <h2 className="text-lg font-semibold text-slate-950">
                         {service.vendor.businessName}
                       </h2>
@@ -276,12 +404,10 @@ function ServiceDetails() {
                           Verified
                         </span>
                       )}
-
                     </div>
 
                     {service.vendor.location && (
                       <div className="mt-2 flex items-center gap-1.5 text-sm text-slate-500">
-
                         <svg
                           className="h-4 w-4"
                           fill="none"
@@ -304,12 +430,9 @@ function ServiceDetails() {
                         </svg>
 
                         {service.vendor.location}
-
                       </div>
                     )}
-
                   </div>
-
                 </div>
 
                 <Link
@@ -318,7 +441,6 @@ function ServiceDetails() {
                 >
                   View provider
                 </Link>
-
               </div>
 
               {service.vendor.description && (
@@ -326,17 +448,258 @@ function ServiceDetails() {
                   {service.vendor.description}
                 </p>
               )}
-
             </div>
 
-            {/* Service Highlights */}
+            {/* Customer Reviews — Added */}
+
+            <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-7 lg:p-8">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Customer feedback
+                  </p>
+
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
+                    Customer reviews
+                  </h2>
+
+                  <p className="mt-2 text-sm text-slate-500">
+                    Feedback from customers who booked this service.
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-slate-50 px-4 py-3 text-right">
+                  <p className="text-2xl font-bold text-slate-950">
+                    {averageRating.toFixed(1)}
+                    <span className="ml-1 text-amber-500">★</span>
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    {totalReviews}{" "}
+                    {totalReviews === 1 ? "review" : "reviews"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Review Form */}
+
+              {currentUserRole === "CUSTOMER" &&
+                eligibleBookings.length > 0 && (
+                  <form
+                    onSubmit={handleSubmitReview}
+                    className="mt-7 rounded-xl border border-slate-200 bg-slate-50 p-5 sm:p-6"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-950">
+                      Write a review
+                    </h3>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      Share your experience with this service.
+                    </p>
+
+                    <div className="mt-5">
+                      <label
+                        htmlFor="review-booking"
+                        className="mb-2 block text-sm font-medium text-slate-700"
+                      >
+                        Completed booking
+                      </label>
+
+                      <select
+                        id="review-booking"
+                        value={selectedBookingId}
+                        onChange={(event) =>
+                          setSelectedBookingId(event.target.value)
+                        }
+                        required
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+                      >
+                        <option value="" disabled>
+                          Select a booking
+                        </option>
+
+                        {eligibleBookings.map((booking) => (
+                          <option key={booking.id} value={booking.id}>
+                            {booking.slot?.service.title ?? "Completed booking"}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="mt-5">
+                      <label
+                        htmlFor="review-rating"
+                        className="mb-2 block text-sm font-medium text-slate-700"
+                      >
+                        Your rating
+                      </label>
+
+                      <select
+                        id="review-rating"
+                        value={rating}
+                        onChange={(event) =>
+                          setRating(Number(event.target.value))
+                        }
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+                      >
+                        <option value={5}>5 - Excellent</option>
+                        <option value={4}>4 - Very good</option>
+                        <option value={3}>3 - Good</option>
+                        <option value={2}>2 - Fair</option>
+                        <option value={1}>1 - Poor</option>
+                      </select>
+
+                      <p className="mt-2 text-lg tracking-widest text-amber-500">
+                        {"★".repeat(rating)}
+                        {"☆".repeat(5 - rating)}
+                      </p>
+                    </div>
+
+                    <div className="mt-5">
+                      <label
+                        htmlFor="review-comment"
+                        className="mb-2 block text-sm font-medium text-slate-700"
+                      >
+                        Comment
+                        <span className="ml-1 font-normal text-slate-400">
+                          (optional)
+                        </span>
+                      </label>
+
+                      <textarea
+                        id="review-comment"
+                        value={comment}
+                        onChange={(event) => setComment(event.target.value)}
+                        maxLength={1000}
+                        rows={4}
+                        placeholder="Tell others about your experience..."
+                        className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm leading-6 outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+                      />
+
+                      <p className="mt-1 text-right text-xs text-slate-400">
+                        {comment.length}/1000 characters
+                      </p>
+                    </div>
+
+                    {reviewMessage && (
+                      <p
+                        role="status"
+                        className={`mt-4 text-sm ${
+                          reviewMessage.includes("successfully")
+                            ? "text-emerald-700"
+                            : "text-red-600"
+                        }`}
+                      >
+                        {reviewMessage}
+                      </p>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={reviewLoading || !selectedBookingId}
+                      className="mt-5 flex w-full items-center justify-center rounded-lg bg-slate-950 px-5 py-3 text-sm font-semibold !text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {reviewLoading ? "Submitting review..." : "Submit review"}
+                    </button>
+                  </form>
+                )}
+
+              {/* Review status messages */}
+
+              {currentUserRole === "CUSTOMER" &&
+                eligibleBookings.length === 0 && (
+                  <p className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+                    You can submit a review after completing a booking for this
+                    service. Each booking can be reviewed only once.
+                  </p>
+                )}
+
+              {reviewMessage && eligibleBookings.length === 0 && (
+                <p
+                  role="status"
+                  className={`mt-4 text-sm ${
+                    reviewMessage.includes("successfully")
+                      ? "text-emerald-700"
+                      : "text-red-600"
+                  }`}
+                >
+                  {reviewMessage}
+                </p>
+              )}
+
+              {/* Reviews List */}
+
+              <div className="mt-7">
+                {reviews.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-200 px-5 py-8 text-center">
+                    <div className="text-3xl text-amber-500">☆</div>
+
+                    <h3 className="mt-3 text-base font-semibold text-slate-900">
+                      No reviews yet
+                    </h3>
+
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      Customer reviews will appear here after someone reviews
+                      this service.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {reviews.map((review) => (
+                      <article key={review.id} className="py-5 first:pt-0">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700">
+                              {(review.user?.name || "C")
+                                .charAt(0)
+                                .toUpperCase()}
+                            </div>
+
+                            <div>
+                              <h3 className="text-sm font-semibold text-slate-900">
+                                {review.user?.name || "Customer"}
+                              </h3>
+
+                              <p className="mt-1 text-xs text-slate-400">
+                                {new Date(review.createdAt).toLocaleDateString(
+                                  "en-IN",
+                                  {
+                                    day: "numeric",
+                                    month: "short",
+                                    year: "numeric",
+                                  }
+                                )}
+                              </p>
+                            </div>
+                          </div>
+
+                          <span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700">
+                            {review.rating}/5
+                          </span>
+                        </div>
+
+                        <p className="mt-3 text-lg tracking-widest text-amber-500">
+                          {"★".repeat(review.rating)}
+                          {"☆".repeat(5 - review.rating)}
+                        </p>
+
+                        {review.comment && (
+                          <p className="mt-2 whitespace-pre-line text-sm leading-7 text-slate-600">
+                            {review.comment}
+                          </p>
+                        )}
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Service Highlights — Original */}
 
             <div className="mt-6 grid gap-4 sm:grid-cols-3">
-
               <div className="rounded-xl border border-slate-200 bg-white p-5">
-
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100">
-
                   <svg
                     className="h-5 w-5 text-slate-700"
                     fill="none"
@@ -350,7 +713,6 @@ function ServiceDetails() {
                       d="M12 8v4l2.5 2.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
                     />
                   </svg>
-
                 </div>
 
                 <h3 className="mt-4 text-sm font-semibold text-slate-950">
@@ -360,13 +722,10 @@ function ServiceDetails() {
                 <p className="mt-1 text-xs leading-5 text-slate-500">
                   Choose from available appointment times.
                 </p>
-
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-5">
-
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100">
-
                   <svg
                     className="h-5 w-5 text-slate-700"
                     fill="none"
@@ -380,7 +739,6 @@ function ServiceDetails() {
                       d="M9 12.75 11 15l4-5m5 2a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"
                     />
                   </svg>
-
                 </div>
 
                 <h3 className="mt-4 text-sm font-semibold text-slate-950">
@@ -392,13 +750,10 @@ function ServiceDetails() {
                     ? "Provider verification is complete."
                     : "Provider information is available."}
                 </p>
-
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-5">
-
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100">
-
                   <svg
                     className="h-5 w-5 text-slate-700"
                     fill="none"
@@ -412,7 +767,6 @@ function ServiceDetails() {
                       d="M12 3v18M17 7.5c0-1.7-2.2-3-5-3S7 5.8 7 7.5s2.2 3 5 3 5 1.3 5 3-2.2 3-5 3-5-1.3-5-3"
                     />
                   </svg>
-
                 </div>
 
                 <h3 className="mt-4 text-sm font-semibold text-slate-950">
@@ -422,36 +776,27 @@ function ServiceDetails() {
                 <p className="mt-1 text-xs leading-5 text-slate-500">
                   Starting price shown before booking.
                 </p>
-
               </div>
-
             </div>
-
           </div>
 
           {/* Right Booking Card */}
 
           <aside className="lg:sticky lg:top-24">
-
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-7">
-
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                 Service price
               </p>
 
               <div className="mt-2 flex items-end gap-2">
-
                 <span className="text-3xl font-bold tracking-[-0.03em] text-slate-950">
                   ₹
-                  {Number(service.price).toLocaleString(
-                    "en-IN"
-                  )}
+                  {Number(service.price).toLocaleString("en-IN")}
                 </span>
 
                 <span className="pb-1 text-sm text-slate-500">
                   starting price
                 </span>
-
               </div>
 
               <p className="mt-4 text-sm leading-6 text-slate-500">
@@ -469,55 +814,37 @@ function ServiceDetails() {
               </button>
 
               <div className="mt-5 space-y-3 border-t border-slate-100 pt-5">
-
                 <div className="flex items-center justify-between text-sm">
-
-                  <span className="text-slate-500">
-                    Category
-                  </span>
+                  <span className="text-slate-500">Category</span>
 
                   <span className="font-medium text-slate-800">
                     {service.category.name}
                   </span>
-
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
-
-                  <span className="text-slate-500">
-                    Provider
-                  </span>
+                  <span className="text-slate-500">Provider</span>
 
                   <span className="max-w-[170px] truncate font-medium text-slate-800">
                     {service.vendor.businessName}
                   </span>
-
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
-
-                  <span className="text-slate-500">
-                    Status
-                  </span>
+                  <span className="text-slate-500">Status</span>
 
                   <span className="font-medium text-emerald-600">
                     Available
                   </span>
-
                 </div>
-
               </div>
-
             </div>
 
-            {/* Safety note */}
+            {/* Safety note — Original */}
 
             <div className="mt-4 rounded-xl border border-slate-200 bg-white p-5">
-
               <div className="flex gap-3">
-
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-
                   <svg
                     className="h-4 w-4 text-slate-700"
                     fill="none"
@@ -538,11 +865,9 @@ function ServiceDetails() {
                       d="m9.5 12 1.7 1.7 3.5-3.7"
                     />
                   </svg>
-
                 </div>
 
                 <div>
-
                   <h3 className="text-sm font-semibold text-slate-900">
                     Book with confidence
                   </h3>
@@ -551,19 +876,12 @@ function ServiceDetails() {
                     Your selected slot is checked by the booking system before
                     confirmation to prevent double bookings.
                   </p>
-
                 </div>
-
               </div>
-
             </div>
-
           </aside>
-
         </div>
-
       </section>
-
     </main>
   );
 }
